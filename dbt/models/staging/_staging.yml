@@ -1,0 +1,58 @@
+version: 2
+
+models:
+  - name: stg_raw_prices
+    description: "Staging layer for raw commodity prices from Spark"
+
+    # tests at model level (row-level constraints)
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "event_ts <= ingest_ts + interval '1 minute'"
+      - dbt_utils.expression_is_true:
+          expression: "event_ts >= ingest_ts - interval '15 minutes'"
+
+    columns:
+      - name: event_id
+        description: "Unique event identifier"
+        data_tests:
+          - not_null
+          - unique
+
+      - name: commodity
+        description: "Commodity key (gold/bitcoin/eurusd)"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["gold", "bitcoin", "eurusd"]
+
+      - name: symbol
+        description: "Market symbol"
+        data_tests:
+          - not_null
+
+      - name: price
+        description: "Price value"
+        data_tests:
+          - not_null
+
+      - name: currency
+        description: "Quote currency"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["USD"]
+
+      - name: event_ts
+        description: "Event time (UTC)"
+        data_tests:
+          - not_null
+
+      - name: ingest_ts
+        description: "Ingestion time in Postgres"
+        data_tests:
+          - not_null
+
+      - name: source
+        description: "Data source identifier"
+        data_tests:
+          - not_null

@@ -1,0 +1,61 @@
+name: security-trivy
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  trivy-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          severity: CRITICAL
+          exit-code: 1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build project images
+        run: |
+          docker build -t magisterka/producer:ci ./producer
+          docker build -t magisterka/alert-receiver:ci ./ops/alert-receiver
+          docker build -t magisterka/dbt-scheduler:ci ./ops/dbt-scheduler
+          docker build -t magisterka/kafka-lag:ci ./ops/kafka-lag
+          docker build -t magisterka/retention:ci ./ops/retention-image
+
+      - name: Trivy image scan (producer)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: magisterka/producer:ci
+          format: table
+          ignore-unfixed: true
+          severity: CRITICAL
+          exit-code: 1
+
+      - name: Trivy scan remaining images
+        run: |
+          for img in \
+            magisterka/alert-receiver:ci \
+            magisterka/dbt-scheduler:ci \
+            magisterka/kafka-lag:ci \
+            magisterka/retention:ci
+          do
+            echo "Scanning $img"
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image \
+              --ignore-unfixed \
+              --severity CRITICAL \
+              --exit-code 1 \
+              "$img"
+          done

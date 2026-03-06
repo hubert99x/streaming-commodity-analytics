@@ -1,0 +1,106 @@
+version: 2
+
+  # ======================================================
+  # MART: Latest price per instrument
+  # ======================================================
+models:
+  - name: mart_latest_prices
+    description: "Latest known price per commodity + symbol (1 row per instrument). Built from stg_raw_prices."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ["commodity", "symbol"]
+      - dbt_utils.expression_is_true:
+          expression: "last_price > 0"
+
+    columns:
+      - name: commodity
+        description: "Instrument key (gold/bitcoin/eurusd)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["gold", "bitcoin", "eurusd"]
+
+      - name: symbol
+        description: "Market symbol (XAU/USD, BTC/USD, EUR/USD)."
+        data_tests:
+          - not_null
+
+      - name: last_timestamp
+        description: "Timestamp of the latest observed event (UTC)."
+        data_tests:
+          - not_null
+
+      - name: last_price
+        description: "Latest observed price."
+        data_tests:
+          - not_null
+
+      - name: currency
+        description: "Quote currency (USD)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["USD"]
+
+      - name: source
+        description: "Data source identifier (e.g., twelvedata_rest)."
+        data_tests:
+          - not_null
+
+
+  # ======================================================
+  # MART: Minute aggregation per instrument
+  # ======================================================
+  - name: mart_minute_last_price
+    description: "Minute-level aggregated statistics per commodity + symbol (minute bucket)."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ["commodity", "symbol", "minute_bucket"]
+      - dbt_utils.expression_is_true:
+          expression: "min_price <= max_price"
+      - dbt_utils.expression_is_true:
+          expression: "last_price > 0"
+      - dbt_utils.expression_is_true:
+          expression: "min_price > 0"
+      - dbt_utils.expression_is_true:
+          expression: "max_price > 0"
+      - dbt_utils.expression_is_true:
+          expression: "n >= 1"
+
+    columns:
+      - name: commodity
+        description: "Instrument key (gold/bitcoin/eurusd)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["gold", "bitcoin", "eurusd"]
+
+      - name: symbol
+        description: "Market symbol."
+        data_tests:
+          - not_null
+
+      - name: minute_bucket
+        description: "UTC minute bucket for the aggregation."
+        data_tests:
+          - not_null
+
+      - name: last_price
+        description: "Last observed price inside the minute."
+        data_tests:
+          - not_null
+
+      - name: n
+        description: "Number of raw events observed in that minute."
+        data_tests:
+          - not_null
+
+      - name: min_price
+        description: "Minimum price in the minute."
+        data_tests:
+          - not_null
+
+      - name: max_price
+        description: "Maximum price in the minute."
+        data_tests:
+          - not_null

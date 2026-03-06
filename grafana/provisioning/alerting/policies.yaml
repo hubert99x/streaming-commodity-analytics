@@ -1,0 +1,11 @@
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: postgres-webhook
+    group_by:
+      - alertname
+    routes:
+      - receiver: postgres-webhook
+        matchers:
+          - severity=critical

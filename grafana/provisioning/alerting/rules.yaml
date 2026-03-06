@@ -1,0 +1,378 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: pipeline-health-30s
+    folder: monitoring
+    interval: 30s
+    rules:
+
+      # ======================================================
+      # CRITICAL: No new ingest for > 7 minutes (420s)
+      # ======================================================
+      - uid: stale_ingest_7m
+        title: Time Since Last Ingest > 7m
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        annotations:
+          summary: "No new ingested rows for more than 7 minutes"
+          description: "Pipeline health: time_since_last_ingest_seconds > 420 for 2 minutes."
+        labels:
+          severity: critical
+          component: pipeline
+        data:
+          - refId: A
+            datasourceUid: postgres
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              format: table
+              intervalMs: 1000
+              maxDataPoints: 1
+              rawSql: |
+                SELECT COALESCE(time_since_last_ingest_seconds, 999999) AS v
+                FROM monitoring.pipeline_metrics;
+
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              settings: {}
+
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [420]
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+                  type: query
+
+      # ======================================================
+      # WARNING: BTC heartbeat (last 12m) < 2
+      # ======================================================
+      - uid: btc_events_last_12m_low
+        title: BTC events (last 12m) < 2
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        annotations:
+          summary: "Too few BTC events in the last 12 minutes"
+          description: "BTC 24/7 heartbeat. Expected 2 events per 12 minutes (2 cycles). Fires when btc_events_last_12m < 2 for 2 minutes."
+        labels:
+          severity: warning
+          component: pipeline
+          commodity: bitcoin
+        data:
+          - refId: A
+            datasourceUid: postgres
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              format: table
+              intervalMs: 1000
+              maxDataPoints: 1
+              rawSql: |
+                SELECT COALESCE(btc_events_last_12m, 0) AS v
+                FROM monitoring.pipeline_metrics;
+
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              settings: {}
+
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [2]
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+                  type: query
+
+      # ======================================================
+      # WARNING: API errors in last 18m >= 1
+      # ======================================================
+      - uid: api_errors_18m_ge_1
+        title: "[WARN] API errors (18m) >= 1"
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        annotations:
+          summary: "At least 1 API error in last 18 minutes"
+          description: "API reliability: errors_18m >= 1 for 2 minutes."
+        labels:
+          severity: warning
+          component: api
+        data:
+          - refId: A
+            datasourceUid: postgres
+            relativeTimeRange:
+              from: 1200
+              to: 0
+            model:
+              format: table
+              intervalMs: 1000
+              maxDataPoints: 1
+              rawSql: |
+                SELECT COALESCE(errors_18m, 0) AS v
+                FROM monitoring.api_metrics_18m;
+
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              settings: {}
+
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+                  type: query
+
+      # ======================================================
+      # CRITICAL: API errors in last 18m >= 3
+      # ======================================================
+      - uid: api_errors_18m_ge_3
+        title: "[CRIT] API errors (18m) >= 3"
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        annotations:
+          summary: "3 or more API errors in last 18 minutes"
+          description: "API reliability: errors_18m >= 3 for 2 minutes."
+        labels:
+          severity: critical
+          component: api
+        data:
+          - refId: A
+            datasourceUid: postgres
+            relativeTimeRange:
+              from: 1200
+              to: 0
+            model:
+              format: table
+              intervalMs: 1000
+              maxDataPoints: 1
+              rawSql: |
+                SELECT COALESCE(errors_18m, 0) AS v
+                FROM monitoring.api_metrics_18m;
+
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              settings: {}
+
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [2]
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+                  type: query
+
+      # ======================================================
+      # WARNING: DLQ events last 15 minutes > 0
+      # NOTE: noDataState=OK treats "no rows" as OK; if you want infra safety, set Alerting.
+      # ======================================================
+      - uid: dlq_events_last_15m_gt_0
+        title: "[WARN] DLQ events (15m) > 0"
+        condition: C
+        for: 2m
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "DLQ has events in last 15 minutes"
+          description: "Data quality issue: dead_letter_events count in last 15 minutes is > 0 for 2 minutes."
+        labels:
+          severity: warning
+          component: dlq
+        data:
+          - refId: A
+            datasourceUid: postgres
+            relativeTimeRange:
+              from: 1200
+              to: 0
+            model:
+              format: table
+              intervalMs: 1000
+              maxDataPoints: 1
+              rawSql: |
+                SELECT count(*)::bigint AS v
+                FROM monitoring.dead_letter_events
+                WHERE ts_utc >= now() - interval '15 minutes';
+
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              settings: {}
+
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+                  type: query
+
+      # ======================================================
+      # WARNING: Kafka consumer lag > 50
+      # CRITICAL: Kafka consumer lag > 500
+      # Uses monitoring.kafka_lag_latest (written by kafka-lag service)
+      # ======================================================
+      - uid: kafka_lag_warn_gt_50
+        title: "[WARN] Kafka lag > 50"
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        annotations:
+          summary: "Kafka consumer lag is above 50"
+          description: "Backlog detected: total_lag > 50 for 2 minutes."
+        labels:
+          severity: warning
+          component: kafka
+        data:
+          - refId: A
+            datasourceUid: postgres
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              format: table
+              intervalMs: 1000
+              maxDataPoints: 1
+              rawSql: |
+                SELECT COALESCE(total_lag, 0)::bigint AS v
+                FROM monitoring.kafka_lag_latest
+                WHERE group_id = 'spark_stream_raw_prices'
+                  AND topic = 'commodity_prices';
+
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              settings: {}
+
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [50]
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+                  type: query
+
+      - uid: kafka_lag_crit_gt_500
+        title: "[CRIT] Kafka lag > 500"
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        annotations:
+          summary: "Kafka consumer lag is above 500"
+          description: "Backlog detected: total_lag > 500 for 2 minutes."
+        labels:
+          severity: critical
+          component: kafka
+        data:
+          - refId: A
+            datasourceUid: postgres
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              format: table
+              intervalMs: 1000
+              maxDataPoints: 1
+              rawSql: |
+                SELECT COALESCE(total_lag, 0)::bigint AS v
+                FROM monitoring.kafka_lag_latest
+                WHERE group_id = 'spark_stream_raw_prices'
+                  AND topic = 'commodity_prices';
+
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              settings: {}
+
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [500]
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+                  type: query

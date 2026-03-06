@@ -1,0 +1,11 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: postgres-webhook
+    receivers:
+      - uid: postgres-webhook
+        type: webhook
+        settings:
+          url: http://alert-receiver:5000/grafana
+          httpMethod: POST

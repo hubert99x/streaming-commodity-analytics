@@ -1,0 +1,12 @@
+name: "commodity_dbt"
+version: "1.0.0"
+profile: "commodity_dbt"
+
+model-paths: ["models"]
+
+models:
+  commodity_dbt:
+    staging:
+      materialized: view
+    marts:
+      materialized: table

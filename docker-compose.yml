@@ -1,0 +1,403 @@
+name: streaming_system
+
+services:
+
+  # =========================
+  # PostgreSQL
+  # =========================
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+      - ./ops/sql:/ops/sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  # =========================
+  # pgAdmin (DEV only)
+  # =========================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    profiles: ["dev"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    restart: unless-stopped
+
+  # =========================
+  # Zookeeper
+  # =========================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD-SHELL", "echo srvr | nc -w 2 localhost 2181 | grep -i zookeeper >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 10s
+    restart: unless-stopped
+
+  # =========================
+  # Kafka (Docker-only)
+  # =========================
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+
+      # Docker-internal only
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:29092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092 >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 40
+      start_period: 30s
+    restart: unless-stopped
+
+  # =========================
+  # Kafka UI (DEV only)
+  # =========================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    profiles: ["dev"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "magisterka"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:29092"
+    restart: unless-stopped
+
+  # =========================
+  # Kafka Lag
+  # =========================
+  kafka-lag:
+    profiles: ["ops"]
+    build: ./ops/kafka-lag
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    restart: unless-stopped
+
+  # =========================
+  # Grafana (localhost only)
+  # =========================
+  grafana:
+    image: grafana/grafana:11.0.0
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - .env
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/commodities_dashboard.json
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    restart: unless-stopped
+
+  # =========================
+  # Alert Receiver (Grafana webhook -> Postgres)
+  # =========================
+  alert-receiver:
+    build: ./ops/alert-receiver
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2).read(); print('ok')\""]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  # =========================
+  # Spark Base (manual/debug)
+  # =========================
+  spark:
+    image: apache/spark:3.5.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./spark:/opt/spark-app
+      - spark_ivy_cache:/home/spark/.ivy2
+    command: ["bash", "-lc", "sleep infinity"]
+    restart: unless-stopped
+
+  # =========================
+  # Spark Streaming Job
+  # =========================
+  spark-stream:
+    image: apache/spark:3.5.1
+
+    # Pragmatic choice: avoid permission issues with mounted volumes (checkpoints/ivy).
+    # If you later build a custom Spark image with a fixed UID/GID, you can remove this.
+    user: "0:0"
+
+    init: true
+    stop_grace_period: 2m
+
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+    env_file:
+      - .env
+
+    environment:
+      PG_TARGET_TABLE: "public.raw_prices"
+      PG_STAGING_PREFIX: "ingest.raw_prices_ingest_"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${SPARK_DB_USER}
+      POSTGRES_PASSWORD: ${SPARK_DB_PASSWORD}
+
+      KAFKA_BOOTSTRAP: kafka:29092
+      KAFKA_TOPIC: ${KAFKA_TOPIC}
+
+      SPARK_CHECKPOINT_DIR: /home/spark/checkpoints/raw_prices
+
+    volumes:
+      - ./spark:/opt/spark-app
+      - spark_ivy_cache:/home/spark/.ivy2
+      - spark_checkpoints:/home/spark/checkpoints
+
+    command:
+      - /bin/bash
+      - -lc
+      - |
+          mkdir -p /home/spark/checkpoints/raw_prices
+          exec /opt/spark/bin/spark-submit \
+            --conf spark.sql.session.timeZone=UTC \
+            --conf spark.jars.ivy=/home/spark/.ivy2 \
+            --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgresql:postgresql:42.7.3 \
+            /opt/spark-app/stream_to_postgres.py
+    restart: unless-stopped
+
+  # =========================
+  # Producer (API -> Kafka)
+  # =========================
+  producer:
+    build: ./producer
+    depends_on:
+      kafka:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      KAFKA_BOOTSTRAP: kafka:29092
+    command: ["python", "-u", "producer.py"]
+    restart: unless-stopped
+
+  # =========================
+  # dbt (manual / on-demand)
+  # =========================
+  dbt:
+    image: ghcr.io/dbt-labs/dbt-postgres:1.8.2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /dbt
+    volumes:
+      - ./dbt:/dbt
+    env_file:
+      - .env
+    environment:
+      DBT_PROFILES_DIR: /dbt
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["sleep infinity"]
+    restart: unless-stopped
+
+  # =========================
+  # dbt Scheduler (auto refresh marts)
+  # =========================
+  dbt-scheduler:
+    build: ./ops/dbt-scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DBT_PROFILES_DIR: /dbt
+      DBT_TARGET: "dev"
+      DQ_ENVIRONMENT: "dev"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      DBT_DB_USER: ${DBT_DB_USER}
+      DBT_DB_PASSWORD: ${DBT_DB_PASSWORD}
+
+      # DB connection for logging (same credentials)
+      POSTGRES_USER: ${DBT_DB_USER}
+      POSTGRES_PASSWORD: ${DBT_DB_PASSWORD}
+    volumes:
+      - ./dbt:/dbt
+    restart: unless-stopped
+
+  # =========================
+  # Retention (OPS job - run manually)
+  # =========================
+  retention:
+    profiles: ["ops"]
+    build: ./ops/retention-image
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    restart: "no"
+
+  # =========================
+  # Backup (OPS job - run automatically) (daemon)
+  # =========================
+  backup-cron:
+    profiles: ["ops"]
+    image: postgres:16
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${BACKUP_DB_USER?err}
+      PGPASSWORD: ${BACKUP_DB_PASSWORD?err}
+      PGDATABASE: ${POSTGRES_DB?err}
+    volumes:
+      - ./backups:/backups
+    restart: unless-stopped
+    command:
+      - sh
+      - -lc
+      - |
+          set -u
+          echo "Backup service started (every 2 hours)."
+
+          while true; do
+            # Include seconds to avoid filename collisions on restarts
+            ts="$$(date +%Y%m%d_%H%M%S)"
+            out="/backups/backup_$${ts}.dump"
+            base="$$(basename "$$out")"
+            err_file="/tmp/pg_dump_err_$$ts.log"
+
+            echo "Running backup at $$(date -Is) -> $$out"
+
+            # Use lock wait timeout so backups fail fast instead of hanging on locks
+            if pg_dump -h "$$PGHOST" -p "$$PGPORT" -U "$$PGUSER" -d "$$PGDATABASE" \
+                --lock-wait-timeout=30 \
+                -F c -f "$$out" 2> "$$err_file"; then
+
+              size="$$(stat -c%s "$$out" 2>/dev/null || echo 0)"
+              echo "Backup OK: $$out ($$size bytes)"
+
+              # Log OK to Postgres (best-effort, keep container alive even if logging fails)
+              psql -X -h "$$PGHOST" -p "$$PGPORT" -U "$$PGUSER" -d "$$PGDATABASE" -v ON_ERROR_STOP=1 \
+                -c "INSERT INTO monitoring.backup_log (file_name, file_size_bytes, status, error_msg)
+                    VALUES ('$$base', $$size, 'OK', NULL);" \
+                >/dev/null 2>&1 || echo "WARNING: failed to insert OK backup log"
+
+              rm -f "$$err_file" >/dev/null 2>&1 || true
+
+              # Keep last 360 backups (2h cadence * 30 days)
+              ls -1t /backups/backup_*.dump | tail -n +361 | xargs -r rm -f
+
+              sleep 7200
+            else
+              # Capture more context (not only the last line)
+              err_msg="$$(tail -n 20 "$$err_file" 2>/dev/null | tr '\n' ' ' | tr -d '\r' | head -c 1500)"
+              # Escape single quotes for SQL literal
+              err_sql="$$(printf "%s" "$$err_msg" | sed "s/'/''/g")"
+
+              echo "Backup FAILED at $$(date -Is): $$err_msg"
+
+              # Remove partial file if any
+              rm -f "$$out" >/dev/null 2>&1 || true
+
+              # Log FAILED to Postgres (best-effort)
+              psql -X -h "$$PGHOST" -p "$$PGPORT" -U "$$PGUSER" -d "$$PGDATABASE" -v ON_ERROR_STOP=1 \
+                -c "INSERT INTO monitoring.backup_log (file_name, file_size_bytes, status, error_msg)
+                    VALUES ('$$base', NULL, 'FAILED', '$$err_sql');" \
+                >/dev/null 2>&1 || echo "WARNING: failed to insert FAILED backup log"
+
+              rm -f "$$err_file" >/dev/null 2>&1 || true
+
+              sleep 60
+            fi
+          done
+
+volumes:
+  pgdata:
+  grafana_data:
+  pgadmin_data:
+  spark_ivy_cache:
+  spark_checkpoints:

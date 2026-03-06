@@ -1,0 +1,40 @@
+# Python virtual environments
+.venv/
+producer/.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Environment variables (secrets)
+.env
+
+# Backups (Postgres dumps)
+backups/
+*.dump
+
+# Spark checkpoints
+spark_checkpoints/
+
+# Docker volumes / runtime data
+pgdata/
+grafana_data/
+
+# Logs
+*.log
+
+# dbt
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+
+# Temporary files
+tmp/
+*.tmp
