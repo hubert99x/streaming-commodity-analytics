@@ -1,16 +1,10 @@
--- remove old raw price data
+FROM postgres:16
 
-DELETE FROM raw_prices
-WHERE event_ts < now() - interval '90 days';
+WORKDIR /app
 
--- clean DLQ history
+COPY retention.sql /app/retention.sql
+COPY run_retention.sh /app/run_retention.sh
 
-DELETE FROM monitoring.dead_letter_events
-WHERE ts_utc < now() - interval '90 days';
+RUN chmod +x /app/run_retention.sh
 
--- clean alert history
-
-DELETE FROM monitoring.alert_events
-WHERE ts_utc < now() - interval '90 days';
-
-VACUUM ANALYZE;
+CMD ["/app/run_retention.sh"]
