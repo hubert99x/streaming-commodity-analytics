@@ -10,12 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           scan-type: fs
           scan-ref: .
@@ -35,7 +34,7 @@ jobs:
           docker build -t magisterka/retention:ci ./ops/retention-image
 
       - name: Trivy image scan (producer)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           scan-type: image
           image-ref: magisterka/producer:ci
@@ -46,16 +45,7 @@ jobs:
 
       - name: Trivy scan remaining images
         run: |
-          for img in \
-            magisterka/alert-receiver:ci \
-            magisterka/dbt-scheduler:ci \
-            magisterka/kafka-lag:ci \
-            magisterka/retention:ci
-          do
-            echo "Scanning $img"
-            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image \
-              --ignore-unfixed \
-              --severity CRITICAL \
-              --exit-code 1 \
-              "$img"
-          done
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/alert-receiver:ci
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/dbt-scheduler:ci
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/kafka-lag:ci
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/retention:ci
