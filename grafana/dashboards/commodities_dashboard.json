@@ -72,7 +72,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 13,
+  "id": 14,
   "links": [],
   "panels": [
     {
@@ -82,14 +82,9 @@
       },
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "align": "left",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false
+          "color": {
+            "mode": "thresholds"
           },
-          "decimals": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -99,37 +94,36 @@
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": 12000
-              },
-              {
                 "color": "red",
-                "value": 30000
+                "value": 80
               }
             ]
-          },
-          "unit": "s"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 3,
+        "h": 5,
         "w": 5,
         "x": 0,
         "y": 0
       },
-      "id": 38,
+      "id": 41,
       "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
           ],
-          "show": false
+          "fields": "",
+          "values": false
         },
-        "showHeader": false
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "11.0.0",
       "targets": [
@@ -141,7 +135,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\r\nCOALESCE(EXTRACT(EPOCH FROM (now() - max(backup_ts))),999999) AS seconds_since_backup\r\nFROM monitoring.backup_log\r\nWHERE status = 'OK';",
+          "rawSql": "select\r\n  run_ts_utc as time,\r\n  total\r\nfrom monitoring.dbt_test_runs\r\norder by run_ts_utc desc\r\nlimit 1;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -162,8 +156,8 @@
           }
         }
       ],
-      "title": "Backup Freshness",
-      "type": "table"
+      "title": "dbt Tests Count",
+      "type": "stat"
     },
     {
       "datasource": {
@@ -581,90 +575,6 @@
       ],
       "title": "Kafka Consumer Lag",
       "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "green",
-                "value": 2
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 5,
-        "x": 0,
-        "y": 3
-      },
-      "id": 37,
-      "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": false,
-        "sizing": "auto"
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "select\r\n  case\r\n    when now() - max(event_ts) < interval '7 minutes' then 2\r\n    when now() - max(event_ts) < interval '15 minutes' then 1\r\n    else 0\r\n  end as pipeline_status_code\r\nfrom public.raw_prices;",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "Pipeline Status",
-      "type": "gauge"
     },
     {
       "datasource": {
@@ -1105,6 +1015,380 @@
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMax": 0,
+            "axisSoftMin": 5,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "fieldMinMax": false,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 5,
+        "x": 0,
+        "y": 5
+      },
+      "id": 40,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select\r\n  run_ts_utc as time,\r\n  (error + fail) as failures\r\nfrom monitoring.dbt_test_runs\r\norder by run_ts_utc;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Data Quality Failures",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 0,
+        "y": 11
+      },
+      "id": 39,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select run_ts_utc, status\r\nfrom monitoring.dbt_test_runs\r\norder by run_ts_utc desc\r\nlimit 5;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Data Quality Status",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 12000
+              },
+              {
+                "color": "red",
+                "value": 30000
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 5,
+        "x": 0,
+        "y": 16
+      },
+      "id": 38,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": false
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\r\nCOALESCE(EXTRACT(EPOCH FROM (now() - max(backup_ts))),999999) AS seconds_since_backup\r\nFROM monitoring.backup_log\r\nWHERE status = 'OK';",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Backup Freshness",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 0,
+        "y": 19
+      },
+      "id": 37,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "sizing": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select\r\n  case\r\n    when now() - max(event_ts) < interval '7 minutes' then 2\r\n    when now() - max(event_ts) < interval '15 minutes' then 1\r\n    else 0\r\n  end as pipeline_status_code\r\nfrom public.raw_prices;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Pipeline Status",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
           "custom": {
             "align": "auto",
             "cellOptions": {
@@ -1133,7 +1417,7 @@
         "h": 4,
         "w": 5,
         "x": 0,
-        "y": 7
+        "y": 23
       },
       "id": 36,
       "options": {
@@ -1216,7 +1500,7 @@
         "h": 1,
         "w": 23,
         "x": 0,
-        "y": 11
+        "y": 27
       },
       "id": 8,
       "options": {
@@ -1279,7 +1563,7 @@
         "h": 1,
         "w": 23,
         "x": 0,
-        "y": 12
+        "y": 28
       },
       "id": 13,
       "options": {
@@ -1328,7 +1612,7 @@
         "h": 2,
         "w": 1,
         "x": 0,
-        "y": 13
+        "y": 29
       },
       "id": 7,
       "options": {
@@ -1422,7 +1706,7 @@
         "h": 2,
         "w": 2,
         "x": 5,
-        "y": 13
+        "y": 29
       },
       "id": 20,
       "options": {
@@ -1511,7 +1795,7 @@
         "h": 2,
         "w": 1,
         "x": 8,
-        "y": 13
+        "y": 29
       },
       "id": 5,
       "options": {
@@ -1604,7 +1888,7 @@
         "h": 2,
         "w": 2,
         "x": 13,
-        "y": 13
+        "y": 29
       },
       "id": 21,
       "options": {
@@ -1694,7 +1978,7 @@
         "h": 2,
         "w": 1,
         "x": 16,
-        "y": 13
+        "y": 29
       },
       "id": 6,
       "options": {
@@ -1787,7 +2071,7 @@
         "h": 2,
         "w": 2,
         "x": 21,
-        "y": 13
+        "y": 29
       },
       "id": 22,
       "options": {
@@ -1910,7 +2194,7 @@
         "h": 10,
         "w": 7,
         "x": 0,
-        "y": 15
+        "y": 31
       },
       "id": 1,
       "options": {
@@ -2057,7 +2341,7 @@
         "h": 10,
         "w": 7,
         "x": 8,
-        "y": 15
+        "y": 31
       },
       "id": 3,
       "options": {
@@ -2175,7 +2459,7 @@
         "h": 10,
         "w": 7,
         "x": 16,
-        "y": 15
+        "y": 31
       },
       "id": 2,
       "options": {
@@ -2203,7 +2487,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\r\n  minute_bucket AS time,\r\n  last_price\r\nFROM analytics.mart_minute_last_price\r\nWHERE symbol='EUR/USD'\r\nAND $__timeFilter(minute_bucket)\r\nORDER BY 1;",
+          "rawSql": "SELECT\r\n  minute_bucket AS \"time\",\r\n  last_price AS value\r\nFROM analytics.mart_minute_last_price\r\nWHERE symbol = 'EUR/USD'\r\n  AND $__timeFilter(minute_bucket)\r\nORDER BY 1;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -2237,7 +2521,7 @@
         "h": 3,
         "w": 23,
         "x": 0,
-        "y": 25
+        "y": 41
       },
       "id": 25,
       "options": {
@@ -2262,7 +2546,7 @@
         "h": 2,
         "w": 23,
         "x": 0,
-        "y": 28
+        "y": 44
       },
       "id": 26,
       "options": {
@@ -2335,7 +2619,7 @@
         "h": 3,
         "w": 5,
         "x": 0,
-        "y": 30
+        "y": 46
       },
       "id": 9,
       "options": {
@@ -2455,7 +2739,7 @@
         "h": 3,
         "w": 5,
         "x": 6,
-        "y": 30
+        "y": 46
       },
       "id": 10,
       "options": {
@@ -2575,7 +2859,7 @@
         "h": 3,
         "w": 5,
         "x": 12,
-        "y": 30
+        "y": 46
       },
       "id": 14,
       "options": {
@@ -2693,7 +2977,7 @@
         "h": 3,
         "w": 5,
         "x": 18,
-        "y": 30
+        "y": 46
       },
       "id": 11,
       "options": {
@@ -2760,7 +3044,7 @@
         "h": 2,
         "w": 23,
         "x": 0,
-        "y": 33
+        "y": 49
       },
       "id": 19,
       "options": {
@@ -2785,7 +3069,7 @@
         "h": 2,
         "w": 23,
         "x": 0,
-        "y": 35
+        "y": 51
       },
       "id": 24,
       "options": {
@@ -2846,7 +3130,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red"
+                "color": "red",
+                "value": null
               },
               {
                 "color": "#EAB839",
@@ -2865,7 +3150,7 @@
         "h": 3,
         "w": 5,
         "x": 0,
-        "y": 37
+        "y": 53
       },
       "id": 16,
       "options": {
@@ -2938,7 +3223,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "#EAB839",
@@ -2957,7 +3243,7 @@
         "h": 3,
         "w": 5,
         "x": 6,
-        "y": 37
+        "y": 53
       },
       "id": 17,
       "options": {
@@ -3030,7 +3316,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "#EAB839",
@@ -3050,7 +3337,7 @@
         "h": 3,
         "w": 5,
         "x": 12,
-        "y": 37
+        "y": 53
       },
       "id": 15,
       "options": {
@@ -3123,7 +3410,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red"
+                "color": "red",
+                "value": null
               },
               {
                 "color": "yellow",
@@ -3143,7 +3431,7 @@
         "h": 3,
         "w": 5,
         "x": 18,
-        "y": 37
+        "y": 53
       },
       "id": 18,
       "options": {
@@ -3209,14 +3497,14 @@
     "list": []
   },
   "time": {
-    "from": "2026-02-14T23:10:14.410Z",
-    "to": "2026-03-18T23:10:14.410Z"
+    "from": "now-30m",
+    "to": "now"
   },
   "timeRangeUpdatedDuringEditOrView": false,
   "timepicker": {},
   "timezone": "utc",
-  "title": "GOLD (XAU/USD), BITCOIN (BTC/USD), EUR/USD Copy Copya Copy",
-  "uid": "aff20cbaij668d",
+  "title": "GOLD (XAU/USD), BITCOIN (BTC/USD), EUR/USD Copy Copya Copy Copy",
+  "uid": "cff4uilxcwkjkf",
   "version": 1,
   "weekStart": ""
 }

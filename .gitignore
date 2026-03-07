@@ -38,3 +38,4 @@ dbt/dbt_packages/
 # Temporary files
 tmp/
 *.tmp
+

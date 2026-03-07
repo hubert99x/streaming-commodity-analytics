@@ -1,13 +1,22 @@
-FROM ghcr.io/dbt-labs/dbt-postgres:1.8.2
+FROM ghcr.io/dbt-labs/dbt-postgres:1.9.latest
 
 USER root
 
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Update base OS packages first, then install only required runtime tools.
 RUN apt-get update \
+ && apt-get upgrade -y \
+ && apt-get dist-upgrade -y \
  && apt-get install -y --no-install-recommends \
-      cron bash procps jq postgresql-client \
+      bash \
+      cron \
+      jq \
+      postgresql-client \
+ && apt-get autoremove -y \
+ && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-# Force a patched DeepDiff version to avoid CVE-2025-58367
 RUN pip install --no-cache-dir --upgrade "deepdiff>=8.6.1"
 
 WORKDIR /dbt
@@ -16,8 +25,7 @@ COPY run_dbt_run.sh  /ops/run_dbt_run.sh
 COPY run_dbt_test.sh /ops/run_dbt_test.sh
 COPY start.sh        /ops/start.sh
 
-RUN chmod +x /ops/run_dbt_run.sh /ops/run_dbt_test.sh /ops/start.sh
+RUN chmod 0755 /ops/run_dbt_run.sh /ops/run_dbt_test.sh /ops/start.sh
 
-# Force shell entrypoint to avoid the default "dbt" entrypoint
 ENTRYPOINT ["/bin/bash", "-lc"]
 CMD ["/ops/start.sh"]

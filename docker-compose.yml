@@ -252,7 +252,7 @@ services:
   # dbt (manual / on-demand)
   # =========================
   dbt:
-    image: ghcr.io/dbt-labs/dbt-postgres:1.8.2
+    image: ghcr.io/dbt-labs/dbt-postgres:1.9.latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -263,6 +263,8 @@ services:
       - .env
     environment:
       DBT_PROFILES_DIR: /dbt
+      DBT_TARGET_PATH: /tmp/dbt_target
+      DBT_LOG_PATH: /tmp/dbt_logs
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB}
@@ -285,14 +287,14 @@ services:
     environment:
       DBT_PROFILES_DIR: /dbt
       DBT_TARGET: "dev"
+      DBT_TARGET_PATH: /tmp/dbt_target
+      DBT_LOG_PATH: /tmp/dbt_logs
       DQ_ENVIRONMENT: "dev"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB}
       DBT_DB_USER: ${DBT_DB_USER}
       DBT_DB_PASSWORD: ${DBT_DB_PASSWORD}
-
-      # DB connection for logging (same credentials)
       POSTGRES_USER: ${DBT_DB_USER}
       POSTGRES_PASSWORD: ${DBT_DB_PASSWORD}
     volumes:

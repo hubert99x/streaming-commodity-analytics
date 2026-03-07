@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure logs exist
 mkdir -p /var/log
-touch /var/log/dbt_run.log /var/log/dbt_test.log
+touch /var/log/dbt_run.log
+touch /var/log/dbt_test.log
 
-# Write a shell-safe env file for cron jobs (proper quoting)
 python3 - <<'PY'
 import os, shlex
 
-# Keep only variables needed by dbt and Postgres connection
 allow_prefixes = ("POSTGRES_", "DBT_")
 allow_exact = {"TZ", "DQ_ENVIRONMENT"}
 
@@ -24,15 +22,20 @@ PY
 chmod 700 /ops/container_env.sh
 
 echo "[startup] $(date -Is) Running dbt deps once..."
+
 cd /dbt
 dbt deps --no-use-colors
 
-# Write cron config
 cat > /etc/cron.d/dbt <<'EOF'
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# dbt run every 6 minutes
 */6 * * * * root bash -lc "source /ops/container_env.sh && /ops/run_dbt_run.sh" >> /var/log/dbt_run.log 2>&1
-10 3 * * * root bash -lc "source /ops/container_env.sh && /ops/run_dbt_test.sh" >> /var/log/dbt_test.log 2>&1
+
+# dbt test every 30 minutes (for demo dashboards)
+*/30 * * * * root bash -lc "source /ops/container_env.sh && /ops/run_dbt_test.sh" >> /var/log/dbt_test.log 2>&1
+
 EOF
 
 chmod 0644 /etc/cron.d/dbt

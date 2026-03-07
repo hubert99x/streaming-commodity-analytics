@@ -4,6 +4,8 @@ profile: "commodity_dbt"
 
 model-paths: ["models"]
 
+packages-install-path: "/tmp/dbt_packages"
+
 models:
   commodity_dbt:
     staging:
