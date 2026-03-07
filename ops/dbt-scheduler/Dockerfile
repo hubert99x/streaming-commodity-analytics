@@ -7,6 +7,9 @@ RUN apt-get update \
       cron bash procps jq postgresql-client \
  && rm -rf /var/lib/apt/lists/*
 
+# Force a patched DeepDiff version to avoid CVE-2025-58367
+RUN pip install --no-cache-dir --upgrade "deepdiff>=8.6.1"
+
 WORKDIR /dbt
 
 COPY run_dbt_run.sh  /ops/run_dbt_run.sh
