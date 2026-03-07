@@ -9,26 +9,17 @@ jobs:
   trivy-scan:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.33.1
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: table
-          severity: CRITICAL
-          exit-code: 1
 
-      - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.5
-        with:
-          version: v0.69.3
-          cache: true
+      - name: Trivy filesystem scan
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            aquasec/trivy:latest \
+            fs --severity CRITICAL --exit-code 1 .
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -43,11 +34,29 @@ jobs:
 
       - name: Trivy image scan (producer)
         run: |
-          trivy image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/producer:ci
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest \
+            image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/producer:ci
 
       - name: Trivy scan remaining images
         run: |
-          trivy image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/alert-receiver:ci
-          trivy image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/dbt-scheduler:ci
-          trivy image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/kafka-lag:ci
-          trivy image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/retention:ci
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest \
+            image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/alert-receiver:ci
+
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest \
+            image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/dbt-scheduler:ci
+
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest \
+            image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/kafka-lag:ci
+
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest \
+            image --ignore-unfixed --severity CRITICAL --exit-code 1 magisterka/retention:ci
