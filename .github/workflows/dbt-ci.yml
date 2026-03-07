@@ -1,0 +1,103 @@
+name: dbt-ci
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  dbt-build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: commodities
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d commodities"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dbt and PostgreSQL client
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install dbt-postgres==1.9.0
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Create CI dbt profile
+        run: |
+          cat > dbt/profiles-ci.yml <<'EOF'
+          commodity_dbt:
+            target: dev
+            outputs:
+              dev:
+                type: postgres
+                host: 127.0.0.1
+                port: 5432
+                user: postgres
+                password: postgres
+                dbname: commodities
+                schema: analytics
+                threads: 2
+          EOF
+
+      - name: Prepare database objects
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d commodities -c "CREATE SCHEMA IF NOT EXISTS analytics;"
+          psql -h 127.0.0.1 -U postgres -d commodities -c "CREATE SCHEMA IF NOT EXISTS monitoring;"
+          psql -h 127.0.0.1 -U postgres -d commodities -c "CREATE SCHEMA IF NOT EXISTS ingest;"
+          psql -h 127.0.0.1 -U postgres -d commodities -c "
+            CREATE TABLE IF NOT EXISTS public.raw_prices (
+              event_id TEXT PRIMARY KEY,
+              commodity TEXT,
+              symbol TEXT,
+              price DOUBLE PRECISION,
+              currency TEXT,
+              event_ts TIMESTAMP,
+              source TEXT,
+              ingest_ts TIMESTAMP
+            );
+          "
+
+      - name: Seed minimal raw_prices data
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d commodities -c "
+            INSERT INTO public.raw_prices (event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts)
+            VALUES
+              ('ci-event-1', 'gold', 'XAU/USD', 2150.25, 'USD', NOW() - INTERVAL '2 minutes', 'ci_seed', NOW()),
+              ('ci-event-2', 'bitcoin', 'BTC/USD', 65000.00, 'USD', NOW() - INTERVAL '1 minute', 'ci_seed', NOW()),
+              ('ci-event-3', 'eurusd', 'EUR/USD', 1.0850, 'USD', NOW(), 'ci_seed', NOW())
+            ON CONFLICT (event_id) DO NOTHING;
+          "
+
+      - name: Run dbt deps
+        run: |
+          cd dbt
+          dbt deps --profiles-dir . --profile commodity_dbt --target dev
+
+      - name: Run dbt build
+        run: |
+          cd dbt
+          dbt build --profiles-dir . --profile commodity_dbt --target dev
+        env:
+          DBT_PROFILES_DIR: /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/dbt

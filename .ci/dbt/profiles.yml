@@ -1,0 +1,12 @@
+commodity_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: 127.0.0.1
+      port: 5432
+      user: postgres
+      pass: postgres
+      dbname: commodities
+      schema: analytics
+      threads: 2
