@@ -93,11 +93,11 @@ jobs:
       - name: Run dbt deps
         run: |
           cd dbt
-          dbt deps --profiles-dir . --profile commodity_dbt --target dev
+          dbt deps --profiles-dir ../.ci/dbt
 
       - name: Run dbt build
         run: |
           cd dbt
-          dbt build --profiles-dir . --profile commodity_dbt --target dev
+          dbt build --profiles-dir ../.ci/dbt
         env:
           DBT_PROFILES_DIR: /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/dbt
