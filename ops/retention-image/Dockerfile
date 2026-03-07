@@ -1,10 +1,32 @@
+# Stage 1: build patched gosu with a newer Go toolchain
+FROM golang:1.25.7-bookworm AS gosu-builder
+
+WORKDIR /src
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# Build gosu from source using a Go version that contains the fix
+RUN git clone https://github.com/tianon/gosu.git . \
+ && (git checkout 1.19 || git checkout v1.19 || git checkout refs/tags/1.19 || git checkout refs/tags/v1.19) \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/gosu .
+
+# Stage 2: final retention image
 FROM postgres:16
 
-WORKDIR /app
+# Replace gosu binary with a rebuild compiled on a patched Go version
+COPY --from=gosu-builder /out/gosu /usr/local/bin/gosu
 
-COPY retention.sql /app/retention.sql
-COPY run_retention.sh /app/run_retention.sh
+RUN chmod 0755 /usr/local/bin/gosu \
+ && gosu nobody true
 
-RUN chmod +x /app/run_retention.sh
+WORKDIR /ops
 
-CMD ["/app/run_retention.sh"] 
+COPY retention.sql /ops/retention.sql
+COPY run_retention.sh /ops/run_retention.sh
+
+RUN chmod 0755 /ops/run_retention.sh
+
+ENTRYPOINT ["/bin/sh", "-c"]
+CMD ["/ops/run_retention.sh"]
