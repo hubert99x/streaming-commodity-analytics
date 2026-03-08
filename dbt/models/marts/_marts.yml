@@ -1,8 +1,8 @@
 version: 2
 
-  # ======================================================
-  # MART: Latest price per instrument
-  # ======================================================
+# ======================================================
+# MART MODELS
+# ======================================================
 models:
   - name: mart_latest_prices
     description: "Latest known price per commodity + symbol (1 row per instrument). Built from stg_raw_prices."
@@ -47,10 +47,6 @@ models:
         data_tests:
           - not_null
 
-
-  # ======================================================
-  # MART: Minute aggregation per instrument
-  # ======================================================
   - name: mart_minute_last_price
     description: "Minute-level aggregated statistics per commodity + symbol (minute bucket)."
     data_tests:
@@ -102,5 +98,119 @@ models:
 
       - name: max_price
         description: "Maximum price in the minute."
+        data_tests:
+          - not_null
+
+  - name: mart_price_events
+    description: "Detected significant price changes between consecutive observations."
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "price_change_pct is not null"
+
+    columns:
+      - name: commodity
+        description: "Instrument key."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["gold", "bitcoin", "eurusd"]
+
+      - name: symbol
+        description: "Market symbol."
+        data_tests:
+          - not_null
+
+      - name: prev_event_ts
+        description: "Timestamp of the previous observation."
+        data_tests:
+          - not_null
+
+      - name: event_ts
+        description: "Timestamp of the current observation."
+        data_tests:
+          - not_null
+
+      - name: current_price
+        description: "Current observed price."
+        data_tests:
+          - not_null
+
+      - name: prev_price
+        description: "Previous observed price."
+        data_tests:
+          - not_null
+
+      - name: price_change_pct
+        description: "Percentage change between consecutive observations."
+        data_tests:
+          - not_null
+
+      - name: event_type
+        description: "Classification of the observed price move."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["MEDIUM_MOVE", "LARGE_MOVE"]
+
+  - name: mart_price_volatility_1h
+    description: "Hourly volatility metrics based on stream observations."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ["commodity", "symbol", "hour_bucket"]
+      - dbt_utils.expression_is_true:
+          expression: "observations_count >= 1"
+      - dbt_utils.expression_is_true:
+          expression: "min_price <= max_price"
+
+    columns:
+      - name: commodity
+        description: "Instrument key."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["gold", "bitcoin", "eurusd"]
+
+      - name: symbol
+        description: "Market symbol."
+        data_tests:
+          - not_null
+
+      - name: hour_bucket
+        description: "UTC hourly bucket."
+        data_tests:
+          - not_null
+
+      - name: observations_count
+        description: "Number of observations within the hour."
+        data_tests:
+          - not_null
+
+      - name: avg_price
+        description: "Average price within the hour."
+        data_tests:
+          - not_null
+
+      - name: min_price
+        description: "Minimum price within the hour."
+        data_tests:
+          - not_null
+
+      - name: max_price
+        description: "Maximum price within the hour."
+        data_tests:
+          - not_null
+
+      - name: price_stddev
+        description: "Standard deviation of prices within the hour."
+        data_tests:
+          - not_null
+
+      - name: price_range
+        description: "Absolute price range within the hour."
+        data_tests:
+          - not_null
+
+      - name: range_pct
+        description: "Relative hourly price range in percent."
         data_tests:
           - not_null

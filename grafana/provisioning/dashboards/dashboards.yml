@@ -10,4 +10,4 @@ providers:
     options:
       path: /var/lib/grafana/dashboards
 
-defaultDashboardUID: afdcrmwthkfeof
+defaultDashboardUID: market-overview

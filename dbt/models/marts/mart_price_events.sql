@@ -1,0 +1,78 @@
+-- Detect significant price changes between consecutive observations
+
+with base as (
+
+    select
+        commodity,
+        symbol,
+        event_ts,
+        price,
+        lag(price) over (
+            partition by commodity, symbol
+            order by event_ts
+        ) as prev_price,
+        lag(event_ts) over (
+            partition by commodity, symbol
+            order by event_ts
+        ) as prev_event_ts
+    from {{ ref('stg_raw_prices') }}
+
+),
+
+changes as (
+
+    select
+        commodity,
+        symbol,
+        event_ts,
+        prev_event_ts,
+        price,
+        prev_price,
+        case
+            when prev_price is not null and prev_price <> 0
+                then (price - prev_price) / prev_price
+            else null
+        end as pct_change
+    from base
+
+),
+
+classified as (
+
+    select
+        commodity,
+        symbol,
+        event_ts,
+        prev_event_ts,
+        price,
+        prev_price,
+        pct_change,
+        case
+            when symbol = 'BTC/USD' and abs(pct_change) >= 0.005 then 'LARGE_MOVE'
+            when symbol = 'BTC/USD' and abs(pct_change) >= 0.002 then 'MEDIUM_MOVE'
+
+            when symbol = 'XAU/USD' and abs(pct_change) >= 0.003 then 'LARGE_MOVE'
+            when symbol = 'XAU/USD' and abs(pct_change) >= 0.0015 then 'MEDIUM_MOVE'
+
+            when symbol = 'EUR/USD' and abs(pct_change) >= 0.0015 then 'LARGE_MOVE'
+            when symbol = 'EUR/USD' and abs(pct_change) >= 0.0007 then 'MEDIUM_MOVE'
+
+            else 'NORMAL'
+        end as event_type
+    from changes
+    where prev_price is not null
+
+)
+
+select
+    commodity,
+    symbol,
+    prev_event_ts,
+    event_ts,
+    price as current_price,
+    prev_price,
+    round((pct_change * 100)::numeric, 4) as price_change_pct,
+    event_type
+from classified
+where event_type <> 'NORMAL'
+order by event_ts desc, symbol

@@ -4,10 +4,12 @@ exposures:
   - name: grafana_commodities_dashboard
     type: dashboard
     maturity: medium
-    description: "Grafana dashboard for monitoring commodity prices and pipeline health."
+    description: "Grafana dashboard for monitoring commodity prices, volatility, events, and pipeline health."
     depends_on:
       - ref('mart_latest_prices')
       - ref('mart_minute_last_price')
+      - ref('mart_price_events')
+      - ref('mart_price_volatility_1h')
     owner:
       name: "Owner"
       email: "n/a"

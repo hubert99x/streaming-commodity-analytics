@@ -60,17 +60,17 @@ groups:
                   type: query
 
       # ======================================================
-      # WARNING: BTC heartbeat (last 12m) < 2
+      # WARNING: BTC heartbeat (last 15m) < 2
       # ======================================================
-      - uid: btc_events_last_12m_low
-        title: BTC events (last 12m) < 2
+      - uid: btc_events_last_15m_low
+        title: BTC events (last 15m) < 2
         condition: C
         for: 2m
         noDataState: Alerting
         execErrState: Alerting
         annotations:
-          summary: "Too few BTC events in the last 12 minutes"
-          description: "BTC 24/7 heartbeat. Expected 2 events per 12 minutes (2 cycles). Fires when btc_events_last_12m < 2 for 2 minutes."
+          summary: "Too few BTC events in the last 15 minutes"
+          description: "BTC 24/7 heartbeat. Expected at least 2 events in the last 15 minutes. Fires when btc_events_last_15m < 2 for 2 minutes."
         labels:
           severity: warning
           component: pipeline
@@ -86,7 +86,7 @@ groups:
               intervalMs: 1000
               maxDataPoints: 1
               rawSql: |
-                SELECT COALESCE(btc_events_last_12m, 0) AS v
+                SELECT COALESCE(btc_events_last_15m, 0) AS v
                 FROM monitoring.pipeline_metrics;
 
           - refId: B
@@ -218,7 +218,6 @@ groups:
 
       # ======================================================
       # WARNING: DLQ events last 15 minutes > 0
-      # NOTE: noDataState=OK treats "no rows" as OK; if you want infra safety, set Alerting.
       # ======================================================
       - uid: dlq_events_last_15m_gt_0
         title: "[WARN] DLQ events (15m) > 0"
@@ -272,8 +271,6 @@ groups:
 
       # ======================================================
       # WARNING: Kafka consumer lag > 50
-      # CRITICAL: Kafka consumer lag > 500
-      # Uses monitoring.kafka_lag_latest (written by kafka-lag service)
       # ======================================================
       - uid: kafka_lag_warn_gt_50
         title: "[WARN] Kafka lag > 50"
@@ -326,6 +323,9 @@ groups:
                     type: last
                   type: query
 
+      # ======================================================
+      # CRITICAL: Kafka consumer lag > 500
+      # ======================================================
       - uid: kafka_lag_crit_gt_500
         title: "[CRIT] Kafka lag > 500"
         condition: C

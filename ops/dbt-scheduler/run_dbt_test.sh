@@ -4,21 +4,26 @@ set -euo pipefail
 # Default environment label (for Postgres logging)
 DQ_ENVIRONMENT="${DQ_ENVIRONMENT:-dev}"
 
-# dbt target must exist in profiles.yml (you currently have only: dev)
+# dbt target must exist in profiles.yml
 DBT_TARGET="${DBT_TARGET:-dev}"
+
+# Respect dbt target path from environment
+DBT_TARGET_PATH="${DBT_TARGET_PATH:-target}"
+RR="${DBT_TARGET_PATH%/}/run_results.json"
 
 cd /dbt
 
 echo "[dbt-test] $(date -Is) starting..."
+echo "[dbt-test] target=${DBT_TARGET}"
+echo "[dbt-test] target_path=${DBT_TARGET_PATH}"
 
 # Run dbt tests (never crash the container on test failures)
 dbt test --target "$DBT_TARGET" --no-use-colors || true
 
-echo "[dbt-test] parsing results..."
+echo "[dbt-test] parsing results from $RR ..."
 
-RR="target/run_results.json"
 if [ ! -f "$RR" ]; then
-  echo "[dbt-test] run_results.json not found"
+  echo "[dbt-test] run_results.json not found at $RR"
   exit 1
 fi
 
