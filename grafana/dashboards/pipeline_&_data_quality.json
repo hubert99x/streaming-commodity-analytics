@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 37,
+  "id": 5,
   "links": [],
   "panels": [
     {
@@ -32,25 +32,13 @@
           "mappings": [
             {
               "options": {
-                "BTC/USD ● OPEN": {
-                  "color": "green",
-                  "index": 2
-                },
-                "EUR/USD ● CLOSED": {
+                "CLOSED": {
                   "color": "red",
-                  "index": 1
-                },
-                "EUR/USD ● OPEN": {
-                  "color": "green",
-                  "index": 3
-                },
-                "XAU/USD ● CLOSED": {
-                  "color": "#F2495C",
                   "index": 0
                 },
-                "XAU/USD ● OPEN": {
+                "OPEN": {
                   "color": "green",
-                  "index": 4
+                  "index": 1
                 }
               },
               "type": "value"
@@ -70,12 +58,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 1,
+        "h": 3,
+        "w": 3,
         "x": 0,
         "y": 0
       },
-      "id": 43,
+      "id": 50,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -83,15 +71,15 @@
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [],
-          "fields": "/.*/",
+          "fields": "/^status$/",
           "values": true
         },
         "showPercentChange": false,
         "text": {
-          "titleSize": 13,
+          "titleSize": 17,
           "valueSize": 17
         },
-        "textMode": "value",
+        "textMode": "value_and_name",
         "wideLayout": true
       },
       "pluginVersion": "11.0.0",
@@ -104,7 +92,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH current_utc AS (\r\n  SELECT now() AT TIME ZONE 'UTC' AS utc_ts\r\n)\r\nSELECT\r\n  'XAU/USD' || ' ' ||\r\n  CASE\r\n    WHEN (\r\n      (extract(dow FROM utc_ts) = 5 AND utc_ts::time >= TIME '22:00')\r\n      OR extract(dow FROM utc_ts) = 6\r\n      OR (extract(dow FROM utc_ts) = 0 AND utc_ts::time < TIME '22:00')\r\n    )\r\n    THEN '● CLOSED'\r\n    ELSE '● OPEN'\r\n  END AS gold_status,\r\n\r\n  'BTC/USD' || ' ' || '● OPEN' AS btc_status,\r\n\r\n  'EUR/USD' || ' ' ||\r\n  CASE\r\n    WHEN (\r\n      (extract(dow FROM utc_ts) = 5 AND utc_ts::time >= TIME '22:00')\r\n      OR extract(dow FROM utc_ts) = 6\r\n      OR (extract(dow FROM utc_ts) = 0 AND utc_ts::time < TIME '22:00')\r\n    )\r\n    THEN '● CLOSED'\r\n    ELSE '● OPEN'\r\n  END AS eurusd_status\r\n\r\nFROM current_utc;",
+          "rawSql": "WITH current_utc AS (\r\n  SELECT now() AT TIME ZONE 'UTC' AS utc_ts\r\n)\r\n\r\nSELECT\r\n  'XAU/USD' as instrument,\r\n  CASE\r\n    WHEN (\r\n      (extract(dow FROM utc_ts) = 5 AND utc_ts::time >= TIME '22:00')\r\n      OR extract(dow FROM utc_ts) = 6\r\n      OR (extract(dow FROM utc_ts) = 0 AND utc_ts::time < TIME '22:00')\r\n    )\r\n    THEN '● CLOSED'\r\n    ELSE '● OPEN'\r\n  END AS status\r\n\r\nFROM current_utc\r\n\r\nUNION ALL\r\n\r\nSELECT\r\n  'BTC/USD',\r\n  '● OPEN'\r\n\r\nUNION ALL\r\n\r\nSELECT\r\n  'EUR/USD',\r\n  CASE\r\n    WHEN (\r\n      (extract(dow FROM utc_ts) = 5 AND utc_ts::time >= TIME '22:00')\r\n      OR extract(dow FROM utc_ts) = 6\r\n      OR (extract(dow FROM utc_ts) = 0 AND utc_ts::time < TIME '22:00')\r\n    )\r\n    THEN '● CLOSED'\r\n    ELSE '● OPEN'\r\n  END\r\nFROM current_utc;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -136,7 +124,7 @@
       "gridPos": {
         "h": 2,
         "w": 17,
-        "x": 3,
+        "x": 4,
         "y": 0
       },
       "id": 44,
@@ -188,7 +176,7 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 3,
+        "x": 4,
         "y": 2
       },
       "id": 31,
@@ -276,7 +264,7 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 9,
+        "x": 10,
         "y": 2
       },
       "id": 32,
@@ -416,7 +404,7 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 15,
+        "x": 16,
         "y": 2
       },
       "id": 29,
@@ -476,7 +464,7 @@
       "gridPos": {
         "h": 2,
         "w": 17,
-        "x": 3,
+        "x": 4,
         "y": 7
       },
       "id": 45,
@@ -548,7 +536,7 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 3,
+        "x": 4,
         "y": 9
       },
       "id": 39,
@@ -644,7 +632,7 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 9,
+        "x": 10,
         "y": 9
       },
       "id": 40,
@@ -860,7 +848,7 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 15,
+        "x": 16,
         "y": 9
       },
       "id": 42,
@@ -920,7 +908,7 @@
       "gridPos": {
         "h": 2,
         "w": 17,
-        "x": 3,
+        "x": 4,
         "y": 14
       },
       "id": 46,
@@ -973,7 +961,7 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 3,
+        "x": 4,
         "y": 16
       },
       "id": 38,
@@ -1105,7 +1093,7 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 9,
+        "x": 10,
         "y": 16
       },
       "id": 37,
@@ -1229,7 +1217,7 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 15,
+        "x": 16,
         "y": 16
       },
       "id": 49,
@@ -1298,7 +1286,7 @@
       "gridPos": {
         "h": 2,
         "w": 17,
-        "x": 3,
+        "x": 4,
         "y": 21
       },
       "id": 47,
@@ -1366,7 +1354,7 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 3,
+        "x": 4,
         "y": 23
       },
       "id": 33,
@@ -1468,8 +1456,7 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": null
+                "id": "custom.width"
               }
             ]
           },
@@ -1502,7 +1489,7 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 9,
+        "x": 10,
         "y": 23
       },
       "id": 30,
@@ -1610,7 +1597,7 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 15,
+        "x": 16,
         "y": 23
       },
       "id": 28,

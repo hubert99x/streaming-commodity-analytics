@@ -150,7 +150,7 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ["MEDIUM_MOVE", "LARGE_MOVE"]
+              values: ['MEDIUM_MOVE', 'LARGE_MOVE', 'EXTREME_MOVE']
 
   - name: mart_price_volatility_1h
     description: "Hourly volatility metrics based on stream observations."

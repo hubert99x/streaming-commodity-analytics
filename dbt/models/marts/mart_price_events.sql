@@ -48,14 +48,20 @@ classified as (
         prev_price,
         pct_change,
         case
-            when symbol = 'BTC/USD' and abs(pct_change) >= 0.005 then 'LARGE_MOVE'
-            when symbol = 'BTC/USD' and abs(pct_change) >= 0.002 then 'MEDIUM_MOVE'
+            -- BTC
+            when symbol = 'BTC/USD' and abs(pct_change) >= 0.015 then 'EXTREME_MOVE'
+            when symbol = 'BTC/USD' and abs(pct_change) >= 0.007 then 'LARGE_MOVE'
+            when symbol = 'BTC/USD' and abs(pct_change) >= 0.003 then 'MEDIUM_MOVE'
 
+            -- GOLD
+            when symbol = 'XAU/USD' and abs(pct_change) >= 0.006 then 'EXTREME_MOVE'
             when symbol = 'XAU/USD' and abs(pct_change) >= 0.003 then 'LARGE_MOVE'
             when symbol = 'XAU/USD' and abs(pct_change) >= 0.0015 then 'MEDIUM_MOVE'
 
-            when symbol = 'EUR/USD' and abs(pct_change) >= 0.0015 then 'LARGE_MOVE'
-            when symbol = 'EUR/USD' and abs(pct_change) >= 0.0007 then 'MEDIUM_MOVE'
+            -- EURUSD
+            when symbol = 'EUR/USD' and abs(pct_change) >= 0.0025 then 'EXTREME_MOVE'
+            when symbol = 'EUR/USD' and abs(pct_change) >= 0.0012 then 'LARGE_MOVE'
+            when symbol = 'EUR/USD' and abs(pct_change) >= 0.0006 then 'MEDIUM_MOVE'
 
             else 'NORMAL'
         end as event_type

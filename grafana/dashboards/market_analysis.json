@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 36,
+  "id": 3,
   "links": [],
   "panels": [
     {
@@ -32,17 +32,13 @@
           "mappings": [
             {
               "options": {
-                "BTC/USD ● OPEN": {
-                  "color": "green",
-                  "index": 1
-                },
-                "EUR/USD ● CLOSED": {
-                  "color": "#F2495C",
+                "CLOSED": {
+                  "color": "red",
                   "index": 0
                 },
-                "XAU/USD ● CLOSED": {
-                  "color": "red",
-                  "index": 2
+                "OPEN": {
+                  "color": "green",
+                  "index": 1
                 }
               },
               "type": "value"
@@ -62,8 +58,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 1,
+        "h": 3,
+        "w": 3,
         "x": 0,
         "y": 0
       },
@@ -75,15 +71,15 @@
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [],
-          "fields": "/.*/",
+          "fields": "/^status$/",
           "values": true
         },
         "showPercentChange": false,
         "text": {
-          "titleSize": 13,
+          "titleSize": 17,
           "valueSize": 17
         },
-        "textMode": "value",
+        "textMode": "value_and_name",
         "wideLayout": true
       },
       "pluginVersion": "11.0.0",
@@ -96,7 +92,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH current_utc AS (\r\n  SELECT now() AT TIME ZONE 'UTC' AS utc_ts\r\n)\r\nSELECT\r\n  'XAU/USD' || ' ' ||\r\n  CASE\r\n    WHEN (\r\n      (extract(dow FROM utc_ts) = 5 AND utc_ts::time >= TIME '22:00')\r\n      OR extract(dow FROM utc_ts) = 6\r\n      OR (extract(dow FROM utc_ts) = 0 AND utc_ts::time < TIME '22:00')\r\n    )\r\n    THEN '● CLOSED'\r\n    ELSE '● OPEN'\r\n  END AS gold_status,\r\n\r\n  'BTC/USD' || ' ' || '● OPEN' AS btc_status,\r\n\r\n  'EUR/USD' || ' ' ||\r\n  CASE\r\n    WHEN (\r\n      (extract(dow FROM utc_ts) = 5 AND utc_ts::time >= TIME '22:00')\r\n      OR extract(dow FROM utc_ts) = 6\r\n      OR (extract(dow FROM utc_ts) = 0 AND utc_ts::time < TIME '22:00')\r\n    )\r\n    THEN '● CLOSED'\r\n    ELSE '● OPEN'\r\n  END AS eurusd_status\r\n\r\nFROM current_utc;",
+          "rawSql": "WITH current_utc AS (\r\n  SELECT now() AT TIME ZONE 'UTC' AS utc_ts\r\n)\r\n\r\nSELECT\r\n  'XAU/USD' as instrument,\r\n  CASE\r\n    WHEN (\r\n      (extract(dow FROM utc_ts) = 5 AND utc_ts::time >= TIME '22:00')\r\n      OR extract(dow FROM utc_ts) = 6\r\n      OR (extract(dow FROM utc_ts) = 0 AND utc_ts::time < TIME '22:00')\r\n    )\r\n    THEN '● CLOSED'\r\n    ELSE '● OPEN'\r\n  END AS status\r\n\r\nFROM current_utc\r\n\r\nUNION ALL\r\n\r\nSELECT\r\n  'BTC/USD',\r\n  '● OPEN'\r\n\r\nUNION ALL\r\n\r\nSELECT\r\n  'EUR/USD',\r\n  CASE\r\n    WHEN (\r\n      (extract(dow FROM utc_ts) = 5 AND utc_ts::time >= TIME '22:00')\r\n      OR extract(dow FROM utc_ts) = 6\r\n      OR (extract(dow FROM utc_ts) = 0 AND utc_ts::time < TIME '22:00')\r\n    )\r\n    THEN '● CLOSED'\r\n    ELSE '● OPEN'\r\n  END\r\nFROM current_utc;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -152,8 +148,8 @@
       },
       "gridPos": {
         "h": 1,
-        "w": 20,
-        "x": 2,
+        "w": 17,
+        "x": 3,
         "y": 0
       },
       "id": 8,
@@ -215,8 +211,8 @@
       },
       "gridPos": {
         "h": 1,
-        "w": 20,
-        "x": 2,
+        "w": 17,
+        "x": 3,
         "y": 1
       },
       "id": 60,
@@ -240,8 +236,8 @@
       },
       "gridPos": {
         "h": 3,
-        "w": 20,
-        "x": 2,
+        "w": 17,
+        "x": 3,
         "y": 2
       },
       "id": 55,
@@ -344,6 +340,10 @@
               {
                 "id": "decimals",
                 "value": 2
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
               }
             ]
           },
@@ -390,7 +390,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "with latest_hour as (\r\n    select max(hour_bucket) as hour_bucket\r\n    from analytics.mart_price_volatility_1h\r\n),\r\n\r\nvolatility as (\r\n    select\r\n        symbol,\r\n        avg_price,\r\n        price_range,\r\n        range_pct\r\n    from analytics.mart_price_volatility_1h\r\n    where hour_bucket = (select hour_bucket from latest_hour)\r\n),\r\n\r\nmoves as (\r\n    select\r\n        symbol,\r\n        max(abs(price_change_pct)) as largest_move,\r\n        count(*) as events\r\n    from analytics.mart_price_events\r\n    where event_ts >= now() - interval '1 hour'\r\n    group by symbol\r\n)\r\n\r\nselect\r\n    v.symbol as \"Instrument\",\r\n    round(v.avg_price::numeric, 2) as \"Avg Price\",\r\n    round(v.price_range::numeric, 2) as \"Price Range\",\r\n    round(v.range_pct::numeric, 3) as \"Hourly Range\",\r\n    round(coalesce(m.largest_move,0)::numeric, 3) as \"Largest Move\",\r\n    coalesce(m.events,0) as \"Events\"\r\nfrom volatility v\r\nleft join moves m\r\n    on v.symbol = m.symbol\r\norder by v.range_pct desc;",
+          "rawSql": "with latest_hour as (\r\n    select max(hour_bucket) as hour_bucket\r\n    from analytics.mart_price_volatility_1h\r\n),\r\n\r\nvolatility as (\r\n    select\r\n        symbol,\r\n        avg_price,\r\n        price_range,\r\n        range_pct\r\n    from analytics.mart_price_volatility_1h\r\n    where hour_bucket = (select hour_bucket from latest_hour)\r\n),\r\n\r\nmoves as (\r\n    select\r\n        symbol,\r\n        max(abs(price_change_pct)) as largest_move,\r\n        count(*) as events\r\n    from analytics.mart_price_events\r\n    where event_ts >= now() - interval '1 hour'\r\n    group by symbol\r\n)\r\n\r\nselect\r\n    v.symbol as \"Instrument\",\r\n\r\n    case\r\n        when v.symbol = 'EUR/USD'\r\n            then to_char(v.avg_price::numeric, 'FM9999999990.0000')\r\n        else\r\n            to_char(v.avg_price::numeric, 'FM9999999990.00')\r\n    end as \"Avg Price\",\r\n\r\n    round(v.price_range::numeric, 2) as \"Price Range\",\r\n    round(v.range_pct::numeric, 3) as \"Hourly Range\",\r\n    round(coalesce(m.largest_move,0)::numeric, 3) as \"Largest Move\",\r\n    coalesce(m.events,0) as \"Events\"\r\n\r\nfrom volatility v\r\nleft join moves m\r\n    on v.symbol = m.symbol\r\norder by v.range_pct desc;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -471,6 +471,10 @@
               {
                 "id": "decimals",
                 "value": 2
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
               }
             ]
           },
@@ -529,7 +533,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "select\r\n    symbol as \"Instrument\",\r\n    avg_price as \"Avg Price\",\r\n    price_range as \"Range\",\r\n    range_pct as \"Range %\",\r\n    price_stddev as \"StdDev\",\r\n    observations_count as \"Observations\"\r\nfrom analytics.mart_price_volatility_1h\r\nwhere hour_bucket = (\r\n    select max(hour_bucket)\r\n    from analytics.mart_price_volatility_1h\r\n)\r\norder by range_pct desc;",
+          "rawSql": "select\r\n    symbol as \"Instrument\",\r\n\r\n    case\r\n        when symbol = 'EUR/USD'\r\n            then to_char(avg_price::numeric, 'FM9999999990.0000')\r\n        else\r\n            to_char(avg_price::numeric, 'FM9999999990.00')\r\n    end as \"Avg Price\",\r\n\r\n    price_range as \"Range\",\r\n    range_pct as \"Range %\",\r\n    price_stddev as \"StdDev\",\r\n    observations_count as \"Observations\"\r\n\r\nfrom analytics.mart_price_volatility_1h\r\n\r\nwhere hour_bucket = (\r\n    select max(hour_bucket)\r\n    from analytics.mart_price_volatility_1h\r\n)\r\n\r\norder by range_pct desc;",
           "refId": "A",
           "sql": {
             "columns": [

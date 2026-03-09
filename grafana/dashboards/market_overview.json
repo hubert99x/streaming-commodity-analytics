@@ -1,75 +1,75 @@
 {
-  "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": {
-          "type": "grafana",
-          "uid": "-- Grafana --"
-        },
-        "enable": false,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
+ "annotations": {
+  "list": [
+    {
+      "builtIn": 1,
+      "datasource": {
+        "type": "grafana",
+        "uid": "-- Grafana --"
       },
-      {
-        "datasource": {
-          "type": "grafana-postgresql-datasource",
-          "uid": "postgres"
+      "enable": true,
+      "hide": true,
+      "iconColor": "rgba(0, 211, 255, 1)",
+      "name": "Annotations & Alerts",
+      "type": "dashboard"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "enable": true,
+      "filter": {
+        "exclude": false,
+        "ids": [
+          2,
+          1
+        ]
+      },
+      "iconColor": "#bfbfbf",
+      "mappings": {
+        "text": {
+          "source": "field",
+          "value": "text"
         },
-        "enable": true,
-        "filter": {
-          "exclude": false,
-          "ids": [
-            2,
-            1
-          ]
+        "time": {
+          "source": "field",
+          "value": "time"
         },
-        "iconColor": "#bfbfbf",
-        "mappings": {
-          "text": {
-            "source": "field",
-            "value": "text"
-          },
-          "time": {
-            "source": "field",
-            "value": "time"
-          },
-          "timeEnd": {
-            "source": "field",
-            "value": "timeEnd"
-          }
-        },
-        "name": "Weekend Market Closed",
-        "target": {
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT\r\n  'Weekend Market Closed' AS text,\r\n  (date_trunc('week', now() at time zone 'utc') + interval '4 days 22 hours') AS time,\r\n  (date_trunc('week', now() at time zone 'utc') + interval '6 days 22 hours') AS \"timeEnd\";",
-          "refId": "Anno",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
+        "timeEnd": {
+          "source": "field",
+          "value": "timeEnd"
+        }
+      },
+      "name": "Weekend Market Closed",
+      "target": {
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT\r\n  'Weekend Market Closed' AS text,\r\n  (date_trunc('week', now() at time zone 'utc') + interval '4 days 22 hours') AS time,\r\n  (date_trunc('week', now() at time zone 'utc') + interval '6 days 22 hours') AS \"timeEnd\";",
+        "refId": "Anno",
+        "sql": {
+          "columns": [
+            {
+              "parameters": [],
+              "type": "function"
+            }
+          ],
+          "groupBy": [
+            {
+              "property": {
+                "type": "string"
+              },
+              "type": "groupBy"
+            }
+          ],
+          "limit": 50
         }
       }
-    ]
-  },
-  "editable": true,
+    }
+  ]
+},
+  "editable":  true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "links": [],

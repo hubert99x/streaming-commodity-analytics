@@ -4,3 +4,6 @@ org:
   name: Main Org.
   preferences:
     timezone: utc
+    theme: dark
+    homeDashboardUID: market_overview
+    
