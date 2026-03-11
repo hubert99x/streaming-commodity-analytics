@@ -1,77 +1,78 @@
 {
- "annotations": {
-  "list": [
-    {
-      "builtIn": 1,
-      "datasource": {
-        "type": "grafana",
-        "uid": "-- Grafana --"
-      },
-      "enable": true,
-      "hide": true,
-      "iconColor": "rgba(0, 211, 255, 1)",
-      "name": "Annotations & Alerts",
-      "type": "dashboard"
-    },
-    {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
-      },
-      "enable": true,
-      "filter": {
-        "exclude": false,
-        "ids": [
-          2,
-          1
-        ]
-      },
-      "iconColor": "#bfbfbf",
-      "mappings": {
-        "text": {
-          "source": "field",
-          "value": "text"
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
         },
-        "time": {
-          "source": "field",
-          "value": "time"
-        },
-        "timeEnd": {
-          "source": "field",
-          "value": "timeEnd"
-        }
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
       },
-      "name": "Weekend Market Closed",
-      "target": {
-        "editorMode": "code",
-        "format": "table",
-        "rawQuery": true,
-        "rawSql": "SELECT\r\n  'Weekend Market Closed' AS text,\r\n  (date_trunc('week', now() at time zone 'utc') + interval '4 days 22 hours') AS time,\r\n  (date_trunc('week', now() at time zone 'utc') + interval '6 days 22 hours') AS \"timeEnd\";",
-        "refId": "Anno",
-        "sql": {
-          "columns": [
-            {
-              "parameters": [],
-              "type": "function"
-            }
-          ],
-          "groupBy": [
-            {
-              "property": {
-                "type": "string"
-              },
-              "type": "groupBy"
-            }
-          ],
-          "limit": 50
+      {
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "postgres"
+        },
+        "enable": true,
+        "filter": {
+          "exclude": false,
+          "ids": [
+            2,
+            1
+          ]
+        },
+        "iconColor": "#bfbfbf",
+        "mappings": {
+          "text": {
+            "source": "field",
+            "value": "text"
+          },
+          "time": {
+            "source": "field",
+            "value": "time"
+          },
+          "timeEnd": {
+            "source": "field",
+            "value": "timeEnd"
+          }
+        },
+        "name": "Weekend Market Closed",
+        "target": {
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\r\n  'Weekend Market Closed' AS text,\r\n  (date_trunc('week', now() at time zone 'utc') + interval '4 days 22 hours') AS time,\r\n  (date_trunc('week', now() at time zone 'utc') + interval '6 days 22 hours') AS \"timeEnd\";",
+          "refId": "Anno",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
         }
       }
-    }
-  ]
-},
-  "editable":  true,
+    ]
+  },
+  "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
+  "id": 12,
   "links": [],
   "panels": [
     {
@@ -1225,13 +1226,13 @@
       },
       "gridPos": {
         "h": 3,
-        "w": 5,
-        "x": 0,
+        "w": 3,
+        "x": 3,
         "y": 20
       },
       "id": 9,
       "options": {
-        "colorMode": "background_solid",
+        "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
@@ -1345,13 +1346,13 @@
       },
       "gridPos": {
         "h": 3,
-        "w": 5,
-        "x": 6,
+        "w": 3,
+        "x": 7,
         "y": 20
       },
       "id": 10,
       "options": {
-        "colorMode": "background_solid",
+        "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
@@ -1465,13 +1466,13 @@
       },
       "gridPos": {
         "h": 3,
-        "w": 5,
-        "x": 12,
+        "w": 3,
+        "x": 14,
         "y": 20
       },
       "id": 14,
       "options": {
-        "colorMode": "background_solid",
+        "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
@@ -1583,13 +1584,13 @@
       },
       "gridPos": {
         "h": 3,
-        "w": 5,
+        "w": 3,
         "x": 18,
         "y": 20
       },
       "id": 11,
       "options": {
-        "colorMode": "background_solid",
+        "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
@@ -1756,13 +1757,13 @@
       },
       "gridPos": {
         "h": 3,
-        "w": 5,
-        "x": 0,
+        "w": 3,
+        "x": 3,
         "y": 26
       },
       "id": 16,
       "options": {
-        "colorMode": "background_solid",
+        "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
@@ -1849,13 +1850,13 @@
       },
       "gridPos": {
         "h": 3,
-        "w": 5,
-        "x": 6,
+        "w": 3,
+        "x": 7,
         "y": 26
       },
       "id": 17,
       "options": {
-        "colorMode": "background_solid",
+        "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
@@ -1943,13 +1944,13 @@
       },
       "gridPos": {
         "h": 3,
-        "w": 5,
-        "x": 12,
+        "w": 3,
+        "x": 14,
         "y": 26
       },
       "id": 15,
       "options": {
-        "colorMode": "background_solid",
+        "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
@@ -2037,13 +2038,13 @@
       },
       "gridPos": {
         "h": 3,
-        "w": 5,
+        "w": 3,
         "x": 18,
         "y": 26
       },
       "id": 18,
       "options": {
-        "colorMode": "background_solid",
+        "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
@@ -2105,14 +2106,14 @@
     "list": []
   },
   "time": {
-    "from": "now-2d",
+    "from": "now-3h",
     "to": "now"
   },
   "timeRangeUpdatedDuringEditOrView": false,
   "timepicker": {},
   "timezone": "utc",
-  "title": "Market Overview",
-  "uid": "market-overview",
+  "title": "Market Overview Copy",
+  "uid": "cffqepszrej9cd",
   "version": 1,
   "weekStart": ""
 }

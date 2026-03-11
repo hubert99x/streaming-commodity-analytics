@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 5,
+  "id": 11,
   "links": [],
   "panels": [
     {
@@ -122,10 +122,35 @@
         "uid": "postgres"
       },
       "gridPos": {
-        "h": 2,
+        "h": 1,
         "w": 17,
         "x": 4,
         "y": 0
+      },
+      "id": 53,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.0.0",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 17,
+        "x": 4,
+        "y": 1
       },
       "id": 44,
       "options": {
@@ -136,6 +161,31 @@
         },
         "content": "<div style=\"\n  text-align: center;\n  margin-bottom: 6px;\n  font-size: 22px;\n  font-weight: 600;\n  color: rgb(195, 205, 220);\n  letter-spacing: 1px;\n\">\n  KAFKA / DLQ\n</div>\n\n<div style=\"\n  height: 1px;\n  background-color: rgba(255,255,255,0.12);\n  width: 85%;\n  margin: 0 auto 20px auto;\n\"></div>",
         "mode": "html"
+      },
+      "pluginVersion": "11.0.0",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "gridPos": {
+        "h": 1,
+        "w": 17,
+        "x": 4,
+        "y": 3
+      },
+      "id": 51,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "",
+        "mode": "markdown"
       },
       "pluginVersion": "11.0.0",
       "transparent": true,
@@ -176,8 +226,8 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 4,
-        "y": 2
+        "x": 3,
+        "y": 4
       },
       "id": 31,
       "options": {
@@ -265,7 +315,7 @@
         "h": 5,
         "w": 5,
         "x": 10,
-        "y": 2
+        "y": 4
       },
       "id": 32,
       "options": {
@@ -404,8 +454,8 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 16,
-        "y": 2
+        "x": 17,
+        "y": 4
       },
       "id": 29,
       "options": {
@@ -465,7 +515,7 @@
         "h": 2,
         "w": 17,
         "x": 4,
-        "y": 7
+        "y": 9
       },
       "id": 45,
       "options": {
@@ -536,8 +586,8 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 4,
-        "y": 9
+        "x": 3,
+        "y": 11
       },
       "id": 39,
       "options": {
@@ -633,7 +683,7 @@
         "h": 5,
         "w": 5,
         "x": 10,
-        "y": 9
+        "y": 11
       },
       "id": 40,
       "options": {
@@ -848,8 +898,8 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 16,
-        "y": 9
+        "x": 17,
+        "y": 11
       },
       "id": 42,
       "options": {
@@ -909,7 +959,7 @@
         "h": 2,
         "w": 17,
         "x": 4,
-        "y": 14
+        "y": 16
       },
       "id": 46,
       "options": {
@@ -961,8 +1011,8 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 4,
-        "y": 16
+        "x": 3,
+        "y": 18
       },
       "id": 38,
       "options": {
@@ -1094,7 +1144,7 @@
         "h": 5,
         "w": 5,
         "x": 10,
-        "y": 16
+        "y": 18
       },
       "id": 37,
       "options": {
@@ -1217,8 +1267,8 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 16,
-        "y": 16
+        "x": 17,
+        "y": 18
       },
       "id": 49,
       "options": {
@@ -1287,7 +1337,7 @@
         "h": 2,
         "w": 17,
         "x": 4,
-        "y": 21
+        "y": 23
       },
       "id": 47,
       "options": {
@@ -1302,6 +1352,121 @@
       "pluginVersion": "11.0.0",
       "transparent": true,
       "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "fieldMinMax": false,
+          "mappings": [
+            {
+              "options": {
+                "-1": {
+                  "color": "red",
+                  "index": 1,
+                  "text": "ERROR"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "NO DATA"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "max": 6,
+          "min": 0,
+          "noValue": "-1",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 3,
+        "y": 25
+      },
+      "id": 28,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 40,
+          "valueSize": 50
+        },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS dlq_last_15m\r\nFROM monitoring.dead_letter_events\r\nWHERE ts_utc >= now() - interval '15 minutes';",
+          "refId": "Events (last 6 min)",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "DLQ Events (15 min)",
+      "transparent": true,
+      "type": "stat"
     },
     {
       "datasource": {
@@ -1354,8 +1519,8 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 4,
-        "y": 23
+        "x": 10,
+        "y": 25
       },
       "id": 33,
       "options": {
@@ -1489,8 +1654,8 @@
       "gridPos": {
         "h": 5,
         "w": 5,
-        "x": 10,
-        "y": 23
+        "x": 17,
+        "y": 25
       },
       "id": 30,
       "options": {
@@ -1540,121 +1705,6 @@
       "title": "DLQ Log",
       "transparent": true,
       "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "fieldMinMax": false,
-          "mappings": [
-            {
-              "options": {
-                "-1": {
-                  "color": "red",
-                  "index": 1,
-                  "text": "ERROR"
-                }
-              },
-              "type": "value"
-            },
-            {
-              "options": {
-                "match": "null",
-                "result": {
-                  "color": "red",
-                  "index": 0,
-                  "text": "NO DATA"
-                }
-              },
-              "type": "special"
-            }
-          ],
-          "max": 6,
-          "min": 0,
-          "noValue": "-1",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 5,
-        "x": 16,
-        "y": 23
-      },
-      "id": 28,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "text": {
-          "titleSize": 40,
-          "valueSize": 50
-        },
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT count(*) AS dlq_last_15m\r\nFROM monitoring.dead_letter_events\r\nWHERE ts_utc >= now() - interval '15 minutes';",
-          "refId": "Events (last 6 min)",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "DLQ Events (15 min)",
-      "transparent": true,
-      "type": "stat"
     }
   ],
   "refresh": "5s",

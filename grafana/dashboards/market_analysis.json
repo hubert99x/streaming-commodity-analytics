@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 3,
+  "id": 9,
   "links": [],
   "panels": [
     {
@@ -235,7 +235,7 @@
         "uid": "postgres"
       },
       "gridPos": {
-        "h": 3,
+        "h": 2,
         "w": 17,
         "x": 3,
         "y": 2
@@ -363,9 +363,9 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 9,
-        "x": 2,
-        "y": 5
+        "w": 7,
+        "x": 3,
+        "y": 4
       },
       "id": 47,
       "options": {
@@ -506,9 +506,9 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 9,
+        "w": 7,
         "x": 13,
-        "y": 5
+        "y": 4
       },
       "id": 46,
       "options": {
@@ -564,10 +564,10 @@
         "uid": "postgres"
       },
       "gridPos": {
-        "h": 1,
-        "w": 20,
-        "x": 2,
-        "y": 10
+        "h": 3,
+        "w": 17,
+        "x": 3,
+        "y": 9
       },
       "id": 59,
       "options": {
@@ -589,10 +589,10 @@
         "uid": "postgres"
       },
       "gridPos": {
-        "h": 3,
-        "w": 20,
-        "x": 2,
-        "y": 11
+        "h": 2,
+        "w": 17,
+        "x": 3,
+        "y": 12
       },
       "id": 54,
       "options": {
@@ -674,7 +674,7 @@
       "gridPos": {
         "h": 15,
         "w": 9,
-        "x": 2,
+        "x": 1,
         "y": 14
       },
       "id": 45,
