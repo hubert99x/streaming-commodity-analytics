@@ -176,7 +176,7 @@ def make_foreach_batch(spark: SparkSession):
         good_batch = (
             persisted
             .filter(col("error_reason").isNull())
-            .drop("error_reason", "raw_payload", "kafka_topic", "kafka_partition", "kafka_offset")
+            .drop("error_reason", "raw_payload", "kafka_topic")
             .dropDuplicates(["event_id"])
         )
 
@@ -203,7 +203,7 @@ def make_foreach_batch(spark: SparkSession):
             )
 
             insert_sql = f"""
-            INSERT INTO {TARGET_TABLE} (event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts)
+            INSERT INTO {TARGET_TABLE} (event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts, kafka_partition, kafka_offset)
             SELECT
               event_id,
               commodity,
@@ -212,7 +212,9 @@ def make_foreach_batch(spark: SparkSession):
               currency,
               event_ts,
               source,
-              ingest_ts
+              ingest_ts,
+              kafka_partition,
+              kafka_offset
             FROM {staging_table}
             ON CONFLICT (event_id) DO NOTHING;
             """

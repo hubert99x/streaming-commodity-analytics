@@ -1,6 +1,7 @@
 import os
 import time
 import psycopg2
+from confluent_kafka import Consumer, TopicPartition
 from confluent_kafka.admin import AdminClient
 
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "kafka:29092")
@@ -45,25 +46,46 @@ def write_lag(total_lag, max_lag):
     conn.close()
 
 
+def get_processed_offsets():
+    """Returns {partition_id: max_kafka_offset} from raw_prices."""
+    conn = get_connection()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT kafka_partition, MAX(kafka_offset)
+                FROM public.raw_prices
+                GROUP BY kafka_partition
+                """
+            )
+            result = {row[0]: row[1] for row in cur.fetchall()}
+    conn.close()
+    return result
+
+
 def get_lag():
 
     admin = AdminClient({"bootstrap.servers": KAFKA_BOOTSTRAP})
-
     cluster_md = admin.list_topics(timeout=10)
+    partition_ids = list(cluster_md.topics[KAFKA_TOPIC].partitions.keys())
 
-    partitions = cluster_md.topics[KAFKA_TOPIC].partitions
+    processed = get_processed_offsets()
+
+    consumer = Consumer({"bootstrap.servers": KAFKA_BOOTSTRAP, "group.id": "__kafka_lag_inspector__"})
 
     total_lag = 0
     max_lag = 0
 
-    for p in partitions:
-
-        lag = 0
-
-        total_lag += lag
-
-        if lag > max_lag:
-            max_lag = lag
+    try:
+        for p in partition_ids:
+            _, high = consumer.get_watermark_offsets(TopicPartition(KAFKA_TOPIC, p), timeout=5)
+            last_processed = processed.get(p, -1)
+            lag = max(0, high - (last_processed + 1))
+            total_lag += lag
+            if lag > max_lag:
+                max_lag = lag
+    finally:
+        consumer.close()
 
     return total_lag, max_lag
 
