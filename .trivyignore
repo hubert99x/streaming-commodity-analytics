@@ -1,0 +1,5 @@
+# Base image vulnerabilities (dbt-postgres:1.9.0) — not exploitable in our context
+# jaraco.context: path traversal via tar — we don't extract untrusted tar archives
+CVE-2026-23949
+# wheel: privilege escalation via malicious .whl — we only install pinned packages from PyPI
+CVE-2026-24049
