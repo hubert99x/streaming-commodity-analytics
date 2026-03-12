@@ -3,3 +3,13 @@
 CVE-2026-23949
 # wheel: privilege escalation via malicious .whl — we only install pinned packages from PyPI
 CVE-2026-24049
+# protobuf: recursion DoS — bundled in Spark base image, not directly used
+CVE-2025-4565
+CVE-2026-0994
+# setuptools: RCE/path traversal in package_index — not used at runtime
+CVE-2024-6345
+CVE-2025-47273
+# urllib3: decompression bomb variants — bundled in base images, our HTTP calls use pinned requests
+CVE-2025-66418
+CVE-2025-66471
+CVE-2026-21441
