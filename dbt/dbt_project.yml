@@ -12,3 +12,12 @@ models:
       materialized: view
     marts:
       materialized: table
+      mart_minute_last_price:
+        +post-hook:
+          - "CREATE INDEX IF NOT EXISTS idx_mart_minute_last_price_symbol_bucket ON {{ this }} (symbol, minute_bucket DESC)"
+      mart_price_events:
+        +post-hook:
+          - "CREATE INDEX IF NOT EXISTS idx_mart_price_events_event_ts ON {{ this }} (event_ts DESC)"
+      mart_price_volatility_1h:
+        +post-hook:
+          - "CREATE INDEX IF NOT EXISTS idx_mart_price_volatility_1h_bucket ON {{ this }} (hour_bucket DESC)"

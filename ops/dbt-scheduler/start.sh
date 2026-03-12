@@ -37,9 +37,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # dbt test every 30 minutes (less frequent - tests are heavier than model refreshes)
 */30 * * * * root bash -lc "source /ops/container_env.sh && /ops/run_dbt_test.sh" >> /var/log/dbt_test.log 2>&1
 
-# cleanup ingest staging tables every hour (keep last 2000)
-0 * * * * root bash -lc 'source /ops/container_env.sh && PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -d "${POSTGRES_DB}" -U "${POSTGRES_USER}" -f /ops/sql/cleanup_ingest_keep_2000.sql && echo "[cleanup] $(date -Is) done"' >> /var/log/dbt_run.log 2>&1
-
 EOF
 
 chmod 0600 /etc/cron.d/dbt

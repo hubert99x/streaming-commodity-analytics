@@ -50,9 +50,7 @@ CHECKPOINT_DIR = os.getenv("SPARK_CHECKPOINT_DIR", "/home/spark/checkpoints/raw_
 
 TARGET_TABLE = os.getenv("PG_TARGET_TABLE", "public.raw_prices")
 
-STAGING_SCHEMA = os.getenv("PG_STAGING_SCHEMA", "ingest")
-STAGING_BASE = os.getenv("PG_STAGING_TABLE_BASE", "raw_prices_ingest")
-STAGING_PREFIX = f"{STAGING_SCHEMA}.{STAGING_BASE}_"
+STAGING_TABLE = os.getenv("PG_STAGING_TABLE", "ingest.raw_prices_staging")
 
 DLQ_TABLE = os.getenv("PG_DLQ_TABLE", "monitoring.dead_letter_events")
 
@@ -91,17 +89,22 @@ def _exec_sql_via_jdbc(spark: SparkSession, sql_text: str) -> None:
     Uses the JVM driver already loaded by Spark, avoiding a psycopg2 dependency.
     """
     jvm = spark._sc._jvm
-    DriverManager = jvm.java.sql.DriverManager
     Properties = jvm.java.util.Properties
 
     props = Properties()
     props.setProperty("user", POSTGRES_USER)
     props.setProperty("password", POSTGRES_PASSWORD)
 
+    # Instantiate the PostgreSQL driver directly via Spark's classloader
+    # (DriverManager can't find it because --packages JARs are on a child classloader)
+    tcl = jvm.java.lang.Thread.currentThread().getContextClassLoader()
+    driver_class = jvm.java.lang.Class.forName("org.postgresql.Driver", True, tcl)
+    driver = driver_class.newInstance()
+
     conn = None
     stmt = None
     try:
-        conn = DriverManager.getConnection(PG_URL, props)
+        conn = driver.connect(PG_URL, props)
         conn.setAutoCommit(False)
         stmt = conn.createStatement()
         stmt.execute(sql_text)
@@ -117,16 +120,42 @@ def _exec_sql_via_jdbc(spark: SparkSession, sql_text: str) -> None:
             conn.close()
 
 
+def _ensure_staging_table(spark: SparkSession):
+    """Create the persistent staging table once (idempotent)."""
+    _exec_sql_via_jdbc(spark, f"""
+    CREATE TABLE IF NOT EXISTS {STAGING_TABLE} (
+        event_id        TEXT,
+        commodity       TEXT,
+        symbol          TEXT,
+        price           DOUBLE PRECISION,
+        currency        TEXT,
+        event_ts        TIMESTAMP,
+        source          TEXT,
+        ingest_ts       TIMESTAMP,
+        kafka_partition INTEGER,
+        kafka_offset    BIGINT,
+        schema_version  INTEGER,
+        ingest_interval_sec INTEGER
+    );
+    """)
+
+
 def make_foreach_batch(spark: SparkSession):
     """
     foreachBatch handler:
     - persist microbatch once
     - compute good/bad counts with a single agg
     - write bad rows to DLQ (best-effort)
-    - write good rows to a per-batch staging table and insert idempotently into target
-    - DO NOT drop staging tables here (durability). Cleanup is handled separately.
+    - TRUNCATE persistent staging table, write good rows, then INSERT ... ON CONFLICT
     """
+    staging_ready = False
+
     def foreach_batch(batch_df, batch_id: int):
+        nonlocal staging_ready
+        if not staging_ready:
+            _ensure_staging_table(spark)
+            staging_ready = True
+
         if batch_df.isEmpty():
             print(f"[spark-stream] batch_id={batch_id} rows=0 skip=true", flush=True)
             return
@@ -184,14 +213,14 @@ def make_foreach_batch(spark: SparkSession):
             except Exception as e:
                 print(f"[spark-stream] DLQ write failed batch_id={batch_id} err={e}", flush=True)
 
-        # Staging table -> idempotent insert into target
+        # TRUNCATE + append to persistent staging table, then merge into target
         if good_rows > 0:
-            staging_table = f"{STAGING_PREFIX}{STREAM_INSTANCE_ID}_{batch_id}"
+            _exec_sql_via_jdbc(spark, f"TRUNCATE {STAGING_TABLE};")
 
             (
                 good_batch.write
-                .mode("overwrite")
-                .jdbc(url=PG_URL, table=staging_table, properties=jdbc_props)
+                .mode("append")
+                .jdbc(url=PG_URL, table=STAGING_TABLE, properties=jdbc_props)
             )
 
             insert_sql = f"""
@@ -207,7 +236,7 @@ def make_foreach_batch(spark: SparkSession):
               ingest_ts,
               kafka_partition,
               kafka_offset
-            FROM {staging_table}
+            FROM {STAGING_TABLE}
             ON CONFLICT (event_id) DO NOTHING;
             """
 

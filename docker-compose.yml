@@ -285,7 +285,7 @@ services:
 
     environment:
       PG_TARGET_TABLE: "public.raw_prices"
-      PG_STAGING_PREFIX: "ingest.raw_prices_ingest_"
+      PG_STAGING_TABLE: "ingest.raw_prices_staging"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB}
