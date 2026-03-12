@@ -1,5 +1,8 @@
 {{
   config(
+    materialized='incremental',
+    unique_key=['commodity', 'symbol', 'minute_bucket'],
+    on_schema_change='sync_all_columns',
     post_hook="CREATE INDEX IF NOT EXISTS idx_{{ this.name }}_bucket ON {{ this }} (minute_bucket DESC)"
   )
 }}
@@ -18,4 +21,8 @@ select
   max(price) as max_price
 
 from {{ ref('stg_raw_prices') }}
+{% if is_incremental() %}
+-- Only recompute last 30 minutes (handles late-arriving data)
+where date_trunc('minute', event_ts) >= (select max(minute_bucket) - interval '30 minutes' from {{ this }})
+{% endif %}
 group by 1,2,3

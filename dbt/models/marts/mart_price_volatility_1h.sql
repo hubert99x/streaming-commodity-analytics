@@ -1,5 +1,8 @@
 {{
   config(
+    materialized='incremental',
+    unique_key=['commodity', 'symbol', 'hour_bucket'],
+    on_schema_change='sync_all_columns',
     post_hook="CREATE INDEX IF NOT EXISTS idx_{{ this.name }}_bucket ON {{ this }} (hour_bucket DESC)"
   )
 }}
@@ -13,6 +16,10 @@ with base as (
         date_trunc('hour', event_ts) as hour_bucket,
         price
     from {{ ref('stg_raw_prices') }}
+    {% if is_incremental() %}
+    -- Only recompute the last 2 completed hours (handles late-arriving data)
+    where date_trunc('hour', event_ts) >= (select max(hour_bucket) - interval '2 hours' from {{ this }})
+    {% endif %}
 
 ),
 
@@ -51,4 +58,6 @@ select
     round(price_range::numeric, 6) as price_range,
     round((range_pct * 100)::numeric, 4) as range_pct
 from aggregated
+-- Exclude current incomplete hour to avoid artificially low volatility
+where hour_bucket < date_trunc('hour', now())
 order by hour_bucket desc, symbol

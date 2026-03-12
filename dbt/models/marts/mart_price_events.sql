@@ -74,7 +74,9 @@ classified as (
         end as event_type
     from changes
     -- Filter out first observation per commodity (no previous price to compare)
+    -- Filter out observations after long gaps (e.g. FX weekend) to avoid false move alerts
     where prev_price is not null
+      and event_ts - prev_event_ts < interval '30 minutes'
 
 )
 
@@ -83,6 +85,7 @@ select
     symbol,
     prev_event_ts,
     event_ts,
+    extract(epoch from (event_ts - prev_event_ts))::integer as time_gap_seconds,
     price as current_price,
     prev_price,
     round((pct_change * 100)::numeric, 4) as price_change_pct,

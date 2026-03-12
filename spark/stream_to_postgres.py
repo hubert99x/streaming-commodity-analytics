@@ -54,6 +54,8 @@ STAGING_TABLE = os.getenv("PG_STAGING_TABLE", "ingest.raw_prices_staging")
 
 DLQ_TABLE = os.getenv("PG_DLQ_TABLE", "monitoring.dead_letter_events")
 
+DLQ_STAGING_TABLE = os.getenv("PG_DLQ_STAGING_TABLE", "ingest.dlq_staging")
+
 KAFKA_MAX_OFFSETS_PER_TRIGGER = os.getenv("KAFKA_MAX_OFFSETS_PER_TRIGGER", "5000")
 
 # =========================
@@ -120,8 +122,8 @@ def _exec_sql_via_jdbc(spark: SparkSession, sql_text: str) -> None:
             conn.close()
 
 
-def _ensure_staging_table(spark: SparkSession):
-    """Create the persistent staging table once (idempotent)."""
+def _ensure_staging_tables(spark: SparkSession):
+    """Create persistent staging tables and DLQ unique constraint once (idempotent)."""
     _exec_sql_via_jdbc(spark, f"""
     CREATE TABLE IF NOT EXISTS {STAGING_TABLE} (
         event_id        TEXT,
@@ -138,6 +140,18 @@ def _ensure_staging_table(spark: SparkSession):
         ingest_interval_sec INTEGER
     );
     """)
+    _exec_sql_via_jdbc(spark, f"""
+    CREATE TABLE IF NOT EXISTS {DLQ_STAGING_TABLE} (
+        stream_instance_id TEXT,
+        batch_id           INTEGER,
+        topic              TEXT,
+        kafka_partition    INTEGER,
+        kafka_offset       BIGINT,
+        error_reason       TEXT,
+        raw_payload        TEXT
+    );
+    """)
+    # DLQ unique constraint (uq_dlq_event) must be created by DB admin — see ops/sql/create_indexes.sql
 
 
 def make_foreach_batch(spark: SparkSession):
@@ -153,7 +167,7 @@ def make_foreach_batch(spark: SparkSession):
     def foreach_batch(batch_df, batch_id: int):
         nonlocal staging_ready
         if not staging_ready:
-            _ensure_staging_table(spark)
+            _ensure_staging_tables(spark)
             staging_ready = True
 
         if batch_df.isEmpty():
@@ -170,85 +184,93 @@ def make_foreach_batch(spark: SparkSession):
 
         persisted = batch_df.persist(StorageLevel.MEMORY_AND_DISK)
 
-        counts = (
-            persisted
-            .agg(
-                F.sum(F.when(F.col("error_reason").isNull(), F.lit(1)).otherwise(F.lit(0))).alias("good_rows"),
-                F.sum(F.when(F.col("error_reason").isNotNull(), F.lit(1)).otherwise(F.lit(0))).alias("bad_rows"),
-            )
-            .collect()[0]
-        )
-        good_rows = int(counts["good_rows"] or 0)
-        bad_rows = int(counts["bad_rows"] or 0)
-
-        bad_batch = (
-            persisted
-            .filter(col("error_reason").isNotNull())
-            .select(
-                lit(STREAM_INSTANCE_ID).alias("stream_instance_id"),
-                lit(int(batch_id)).alias("batch_id"),
-                col("kafka_topic").alias("topic"),
-                col("kafka_partition").cast("int").alias("kafka_partition"),
-                col("kafka_offset").cast("bigint").alias("kafka_offset"),
-                col("error_reason"),
-                col("raw_payload"),
-            )
-        )
-
-        good_batch = (
-            persisted
-            .filter(col("error_reason").isNull())
-            .drop("error_reason", "raw_payload", "kafka_topic")
-            .dropDuplicates(["event_id"])  # intra-batch dedup (cross-batch handled by ON CONFLICT)
-        )
-
-        # DLQ (best-effort)
-        if bad_rows > 0:
-            try:
-                (
-                    bad_batch.write
-                    .mode("append")
-                    .jdbc(url=PG_URL, table=DLQ_TABLE, properties=jdbc_props)
+        try:
+            counts = (
+                persisted
+                .agg(
+                    F.sum(F.when(F.col("error_reason").isNull(), F.lit(1)).otherwise(F.lit(0))).alias("good_rows"),
+                    F.sum(F.when(F.col("error_reason").isNotNull(), F.lit(1)).otherwise(F.lit(0))).alias("bad_rows"),
                 )
-            except Exception as e:
-                print(f"[spark-stream] DLQ write failed batch_id={batch_id} err={e}", flush=True)
+                .collect()[0]
+            )
+            good_rows = int(counts["good_rows"] or 0)
+            bad_rows = int(counts["bad_rows"] or 0)
 
-        # TRUNCATE + append to persistent staging table, then merge into target
-        if good_rows > 0:
-            _exec_sql_via_jdbc(spark, f"TRUNCATE {STAGING_TABLE};")
-
-            (
-                good_batch.write
-                .mode("append")
-                .jdbc(url=PG_URL, table=STAGING_TABLE, properties=jdbc_props)
+            bad_batch = (
+                persisted
+                .filter(col("error_reason").isNotNull())
+                .select(
+                    lit(STREAM_INSTANCE_ID).alias("stream_instance_id"),
+                    lit(int(batch_id)).alias("batch_id"),
+                    col("kafka_topic").alias("topic"),
+                    col("kafka_partition").cast("int").alias("kafka_partition"),
+                    col("kafka_offset").cast("bigint").alias("kafka_offset"),
+                    col("error_reason"),
+                    col("raw_payload"),
+                )
             )
 
-            insert_sql = f"""
-            INSERT INTO {TARGET_TABLE} (event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts, kafka_partition, kafka_offset)
-            SELECT
-              event_id,
-              commodity,
-              symbol,
-              price,
-              currency,
-              event_ts,
-              source,
-              ingest_ts,
-              kafka_partition,
-              kafka_offset
-            FROM {STAGING_TABLE}
-            ON CONFLICT (event_id) DO NOTHING;
-            """
+            good_batch = (
+                persisted
+                .filter(col("error_reason").isNull())
+                .drop("error_reason", "raw_payload", "kafka_topic")
+                .dropDuplicates(["event_id"])  # intra-batch dedup (cross-batch handled by ON CONFLICT)
+            )
 
-            _exec_sql_via_jdbc(spark, insert_sql)
+            # DLQ (best-effort, idempotent via staging + ON CONFLICT)
+            if bad_rows > 0:
+                try:
+                    _exec_sql_via_jdbc(spark, f"TRUNCATE {DLQ_STAGING_TABLE};")
+                    (
+                        bad_batch.write
+                        .mode("append")
+                        .jdbc(url=PG_URL, table=DLQ_STAGING_TABLE, properties=jdbc_props)
+                    )
+                    _exec_sql_via_jdbc(spark, f"""
+                    INSERT INTO {DLQ_TABLE} (stream_instance_id, batch_id, topic, kafka_partition, kafka_offset, error_reason, raw_payload)
+                    SELECT stream_instance_id, batch_id, topic, kafka_partition, kafka_offset, error_reason, raw_payload
+                    FROM {DLQ_STAGING_TABLE}
+                    ON CONFLICT (stream_instance_id, batch_id, kafka_partition, kafka_offset) DO NOTHING;
+                    """)
+                except Exception as e:
+                    print(f"[spark-stream] DLQ write failed batch_id={batch_id} err={e}", flush=True)
 
-        ms = int((time.time() - t0) * 1000)
-        print(
-            f"[spark-stream] batch_id={batch_id} good_rows={good_rows} bad_rows={bad_rows} ms={ms}",
-            flush=True,
-        )
+            # TRUNCATE + append to persistent staging table, then merge into target
+            if good_rows > 0:
+                _exec_sql_via_jdbc(spark, f"TRUNCATE {STAGING_TABLE};")
 
-        persisted.unpersist()
+                (
+                    good_batch.write
+                    .mode("append")
+                    .jdbc(url=PG_URL, table=STAGING_TABLE, properties=jdbc_props)
+                )
+
+                insert_sql = f"""
+                INSERT INTO {TARGET_TABLE} (event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts, kafka_partition, kafka_offset)
+                SELECT
+                  event_id,
+                  commodity,
+                  symbol,
+                  price,
+                  currency,
+                  event_ts,
+                  source,
+                  ingest_ts,
+                  kafka_partition,
+                  kafka_offset
+                FROM {STAGING_TABLE}
+                ON CONFLICT (event_id) DO NOTHING;
+                """
+
+                _exec_sql_via_jdbc(spark, insert_sql)
+
+            ms = int((time.time() - t0) * 1000)
+            print(
+                f"[spark-stream] batch_id={batch_id} good_rows={good_rows} bad_rows={bad_rows} ms={ms}",
+                flush=True,
+            )
+        finally:
+            persisted.unpersist()
 
     return foreach_batch
 
@@ -318,6 +340,23 @@ if __name__ == "__main__":
             .when(col("source").isNull(), lit("MISSING_FIELD:source"))
             .when(col("event_ts").isNull(), lit("INVALID_FIELD:event_ts"))
             .when(col("price") <= lit(0), lit("INVALID_FIELD:price<=0"))
+            .when(col("schema_version") != lit(1), lit("UNSUPPORTED_SCHEMA_VERSION"))
+            # Per-commodity sanity bounds catch absurd API values
+            .when(
+                (col("symbol") == "XAU/USD")
+                & ((col("price") < lit(500)) | (col("price") > lit(15000))),
+                lit("INVALID_FIELD:price_out_of_range"),
+            )
+            .when(
+                (col("symbol") == "BTC/USD")
+                & ((col("price") < lit(100)) | (col("price") > lit(1000000))),
+                lit("INVALID_FIELD:price_out_of_range"),
+            )
+            .when(
+                (col("symbol") == "EUR/USD")
+                & ((col("price") < lit(0.5)) | (col("price") > lit(2.0))),
+                lit("INVALID_FIELD:price_out_of_range"),
+            )
             .otherwise(lit(None))
         )
     )

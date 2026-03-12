@@ -31,10 +31,10 @@ cat > /etc/cron.d/dbt <<'EOF'
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# dbt run every 6 minutes (matches producer INTERVAL_SEC)
+# dbt build (models + tests together) every 6 minutes — catches quality issues before they propagate
 */6 * * * * root bash -lc "source /ops/container_env.sh && /ops/run_dbt_run.sh" >> /var/log/dbt_run.log 2>&1
 
-# dbt test every 30 minutes (less frequent - tests are heavier than model refreshes)
+# Parse test results and log to monitoring.dbt_test_runs every 30 minutes
 */30 * * * * root bash -lc "source /ops/container_env.sh && /ops/run_dbt_test.sh" >> /var/log/dbt_test.log 2>&1
 
 EOF

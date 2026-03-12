@@ -368,9 +368,14 @@ def main():
                 print(f"SKIP {commodity} ({symbol}) - no price in batch response", flush=True)
                 continue
 
+            # Deterministic event_id: same (commodity, timestamp) always produces the same ID,
+            # preventing semantic duplicates if the application retries a publish attempt.
+            event_id_namespace = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")  # standard DNS namespace
+            event_id = str(uuid.uuid5(event_id_namespace, f"{commodity}:{ts}"))
+
             event = {
                 "schema_version": 1,
-                "event_id": str(uuid.uuid4()),
+                "event_id": event_id,
                 "commodity": commodity,
                 "symbol": symbol,
                 "price": float(price),

@@ -9,5 +9,8 @@ select
   currency::text as currency,
   event_ts at time zone 'utc' as event_ts,
   source::text as source,
-  ingest_ts at time zone 'utc' as ingest_ts
+  ingest_ts at time zone 'utc' as ingest_ts,
+  -- Kafka metadata retained for debugging (trace bad mart records back to source)
+  kafka_partition::integer as kafka_partition,
+  kafka_offset::bigint as kafka_offset
 from public.raw_prices

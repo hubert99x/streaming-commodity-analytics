@@ -130,6 +130,11 @@ models:
         data_tests:
           - not_null
 
+      - name: time_gap_seconds
+        description: "Seconds between current and previous observation."
+        data_tests:
+          - not_null
+
       - name: current_price
         description: "Current observed price."
         data_tests:
