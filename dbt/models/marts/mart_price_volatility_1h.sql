@@ -1,3 +1,8 @@
+{{
+  config(
+    post_hook="CREATE INDEX IF NOT EXISTS idx_{{ this.name }}_bucket ON {{ this }} (hour_bucket DESC)"
+  )
+}}
 -- Hourly volatility metrics based on stream observations
 
 with base as (

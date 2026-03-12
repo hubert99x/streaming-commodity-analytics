@@ -1,5 +1,7 @@
 FROM python:3.12-slim
 
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
 WORKDIR /app
 
 COPY requirements.txt .
@@ -10,4 +12,5 @@ COPY app.py .
 ENV PYTHONUNBUFFERED=1
 EXPOSE 5000
 
+USER appuser
 CMD ["python", "app.py"]

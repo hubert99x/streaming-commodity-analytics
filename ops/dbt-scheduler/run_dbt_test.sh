@@ -41,7 +41,7 @@ fi
 
 echo "[dbt-test] status=$status total=$total pass=$pass warn=$warn error=$error fail=$fail skip=$skip"
 
-psql "host=${POSTGRES_HOST} port=${POSTGRES_PORT} dbname=${POSTGRES_DB} user=${POSTGRES_USER} password=${POSTGRES_PASSWORD}" \
+PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -d "${POSTGRES_DB}" -U "${POSTGRES_USER}" \
   -v ON_ERROR_STOP=1 \
   -c "INSERT INTO monitoring.dbt_test_runs
       (environment, status, total, pass, warn, error, fail, skipped)

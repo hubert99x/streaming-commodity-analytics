@@ -38,11 +38,11 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 */30 * * * * root bash -lc "source /ops/container_env.sh && /ops/run_dbt_test.sh" >> /var/log/dbt_test.log 2>&1
 
 # cleanup ingest staging tables every hour (keep last 2000)
-0 * * * * root bash -lc 'source /ops/container_env.sh && psql "host=${POSTGRES_HOST} port=${POSTGRES_PORT} dbname=${POSTGRES_DB} user=${POSTGRES_USER} password=${POSTGRES_PASSWORD}" -f /ops/sql/cleanup_ingest_keep_2000.sql && echo "[cleanup] $(date -Is) done"' >> /var/log/dbt_run.log 2>&1
+0 * * * * root bash -lc 'source /ops/container_env.sh && PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -d "${POSTGRES_DB}" -U "${POSTGRES_USER}" -f /ops/sql/cleanup_ingest_keep_2000.sql && echo "[cleanup] $(date -Is) done"' >> /var/log/dbt_run.log 2>&1
 
 EOF
 
-chmod 0644 /etc/cron.d/dbt
+chmod 0600 /etc/cron.d/dbt
 
 echo "[startup] $(date -Is) Starting cron..."
 cron

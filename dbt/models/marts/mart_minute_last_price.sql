@@ -1,3 +1,8 @@
+{{
+  config(
+    post_hook="CREATE INDEX IF NOT EXISTS idx_{{ this.name }}_bucket ON {{ this }} (minute_bucket DESC)"
+  )
+}}
 -- Last observed price per minute bucket (most recent wins via ordered array_agg)
 
 select

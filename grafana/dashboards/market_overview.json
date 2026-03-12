@@ -831,7 +831,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\r\n  minute_bucket AS \"time\",\r\n  (array_agg(price ORDER BY event_ts DESC, event_id DESC))[1] AS last_price\r\nFROM (\r\n  SELECT\r\n    date_trunc('minute', event_ts) AS minute_bucket,\r\n    event_ts,\r\n    event_id,\r\n    price\r\n  FROM public.raw_prices\r\n  WHERE commodity = 'gold'\r\n    AND $__timeFilter(event_ts)\r\n) s\r\nGROUP BY 1\r\nORDER BY 1;",
+          "rawSql": "SELECT\r\n  minute_bucket AS \"time\",\r\n  last_price AS value\r\nFROM analytics.mart_minute_last_price\r\nWHERE symbol = 'XAU/USD'\r\n  AND $__timeFilter(minute_bucket)\r\nORDER BY 1;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -978,7 +978,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\r\n  minute_bucket AS \"time\",\r\n  (array_agg(price ORDER BY event_ts DESC, event_id DESC))[1] AS last_price\r\nFROM (\r\n  SELECT\r\n    date_trunc('minute', event_ts) AS minute_bucket,\r\n    event_ts,\r\n    event_id,\r\n    price\r\n  FROM public.raw_prices\r\n  WHERE commodity = 'bitcoin'\r\n    AND $__timeFilter(event_ts)\r\n) s\r\nGROUP BY 1\r\nORDER BY 1;",
+          "rawSql": "SELECT\r\n  minute_bucket AS \"time\",\r\n  last_price AS value\r\nFROM analytics.mart_minute_last_price\r\nWHERE symbol = 'BTC/USD'\r\n  AND $__timeFilter(minute_bucket)\r\nORDER BY 1;",
           "refId": "A",
           "sql": {
             "columns": [

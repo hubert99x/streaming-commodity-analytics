@@ -127,7 +127,7 @@ def make_foreach_batch(spark: SparkSession):
     - DO NOT drop staging tables here (durability). Cleanup is handled separately.
     """
     def foreach_batch(batch_df, batch_id: int):
-        if batch_df.rdd.isEmpty():
+        if batch_df.isEmpty():
             print(f"[spark-stream] batch_id={batch_id} rows=0 skip=true", flush=True)
             return
 
@@ -299,6 +299,7 @@ if __name__ == "__main__":
         df_with_reason.writeStream
         .foreachBatch(foreach_fn)
         .option("checkpointLocation", CHECKPOINT_DIR)
+        .trigger(processingTime="60 seconds")
         .outputMode("update")
         .start()
     )

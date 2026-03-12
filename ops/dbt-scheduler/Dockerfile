@@ -1,4 +1,4 @@
-FROM ghcr.io/dbt-labs/dbt-postgres:1.9.latest
+FROM ghcr.io/dbt-labs/dbt-postgres:1.9.0
 
 USER root
 
@@ -17,7 +17,7 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir --upgrade "deepdiff>=8.6.1"
+RUN pip install --no-cache-dir --upgrade "deepdiff==8.6.1"
 
 WORKDIR /dbt
 

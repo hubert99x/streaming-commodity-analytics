@@ -1,3 +1,8 @@
+{{
+  config(
+    post_hook="CREATE INDEX IF NOT EXISTS idx_{{ this.name }}_event_ts ON {{ this }} (event_ts DESC)"
+  )
+}}
 -- Detect significant price changes between consecutive observations
 
 with base as (

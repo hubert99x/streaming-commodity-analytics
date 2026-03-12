@@ -13,7 +13,7 @@ RUN git clone https://github.com/tianon/gosu.git . \
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/gosu .
 
 # Stage 2: final retention image
-FROM postgres:16
+FROM postgres:16.6
 
 # Replace gosu binary with a rebuild compiled on a patched Go version
 COPY --from=gosu-builder /out/gosu /usr/local/bin/gosu
