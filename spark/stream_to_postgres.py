@@ -25,9 +25,9 @@ import pyspark.sql.functions as F
 
 
 # =========================
-# Env config (NO hardcode)
+# Env config
 # =========================
-KAFKA_CONSUMER_GROUP = os.getenv("KAFKA_CONSUMER_GROUP", "spark_stream_raw_prices")  # kept for compatibility/logging only
+KAFKA_CONSUMER_GROUP = os.getenv("KAFKA_CONSUMER_GROUP", "spark_stream_raw_prices")
 
 KAFKA_BOOTSTRAP = os.getenv(
     "KAFKA_BOOTSTRAP_SERVERS",
@@ -46,31 +46,26 @@ STREAM_INSTANCE_ID = os.getenv("STREAM_INSTANCE_ID", "stream1")
 PG_URL = f"jdbc:postgresql://{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 PG_DRIVER = "org.postgresql.Driver"
 
-# Checkpoint path (keep it on a volume)
 CHECKPOINT_DIR = os.getenv("SPARK_CHECKPOINT_DIR", "/home/spark/checkpoints/raw_prices")
 
-# Target tables
 TARGET_TABLE = os.getenv("PG_TARGET_TABLE", "public.raw_prices")
 
-# IMPORTANT: stage tables live in ingest schema (durable; cleanup separately)
 STAGING_SCHEMA = os.getenv("PG_STAGING_SCHEMA", "ingest")
 STAGING_BASE = os.getenv("PG_STAGING_TABLE_BASE", "raw_prices_ingest")
 STAGING_PREFIX = f"{STAGING_SCHEMA}.{STAGING_BASE}_"
 
-# DLQ table
 DLQ_TABLE = os.getenv("PG_DLQ_TABLE", "monitoring.dead_letter_events")
 
-# Backpressure (single line feature toggle; default is safe)
 KAFKA_MAX_OFFSETS_PER_TRIGGER = os.getenv("KAFKA_MAX_OFFSETS_PER_TRIGGER", "5000")
 
 # =========================
-# Kafka options (IMPORTANT)
+# Kafka options
 # =========================
-STARTING_OFFSETS = os.getenv("KAFKA_STARTING_OFFSETS", "latest").lower()  # earliest/latest
+STARTING_OFFSETS = os.getenv("KAFKA_STARTING_OFFSETS", "earliest").lower()
 if STARTING_OFFSETS not in ("earliest", "latest"):
-    STARTING_OFFSETS = "latest"
+    STARTING_OFFSETS = "earliest"
 
-FAIL_ON_DATA_LOSS = os.getenv("KAFKA_FAIL_ON_DATA_LOSS", "false").lower()  # "true"/"false"
+FAIL_ON_DATA_LOSS = os.getenv("KAFKA_FAIL_ON_DATA_LOSS", "false").lower()
 if FAIL_ON_DATA_LOSS not in ("true", "false"):
     FAIL_ON_DATA_LOSS = "false"
 
@@ -84,7 +79,7 @@ event_schema = StructType([
     StructField("symbol", StringType(), True),
     StructField("price", DoubleType(), True),
     StructField("currency", StringType(), True),
-    StructField("timestamp", StringType(), True),  # ISO8601 with Z
+    StructField("timestamp", StringType(), True),
     StructField("source", StringType(), True),
     StructField("ingest_interval_sec", IntegerType(), True),
 ])
@@ -93,6 +88,7 @@ event_schema = StructType([
 def _exec_sql_via_jdbc(spark: SparkSession, sql_text: str) -> None:
     """
     Execute SQL on Postgres using JVM JDBC (no extra Python libs required).
+    Uses the JVM driver already loaded by Spark, avoiding a psycopg2 dependency.
     """
     jvm = spark._sc._jvm
     DriverManager = jvm.java.sql.DriverManager
@@ -143,10 +139,8 @@ def make_foreach_batch(spark: SparkSession):
             "driver": PG_DRIVER,
         }
 
-        # Persist once so we don't recompute lineage multiple times (counts + filters + writes)
         persisted = batch_df.persist(StorageLevel.MEMORY_AND_DISK)
 
-        # Compute good/bad counts in ONE Spark job
         counts = (
             persisted
             .agg(
@@ -158,7 +152,6 @@ def make_foreach_batch(spark: SparkSession):
         good_rows = int(counts["good_rows"] or 0)
         bad_rows = int(counts["bad_rows"] or 0)
 
-        # Prepare bad/good batches from persisted
         bad_batch = (
             persisted
             .filter(col("error_reason").isNotNull())
@@ -177,10 +170,10 @@ def make_foreach_batch(spark: SparkSession):
             persisted
             .filter(col("error_reason").isNull())
             .drop("error_reason", "raw_payload", "kafka_topic")
-            .dropDuplicates(["event_id"])
+            .dropDuplicates(["event_id"])  # intra-batch dedup (cross-batch handled by ON CONFLICT)
         )
 
-        # 1) Write DLQ (append). Best effort: do not block good path if DLQ fails.
+        # DLQ (best-effort)
         if bad_rows > 0:
             try:
                 (
@@ -191,11 +184,10 @@ def make_foreach_batch(spark: SparkSession):
             except Exception as e:
                 print(f"[spark-stream] DLQ write failed batch_id={batch_id} err={e}", flush=True)
 
-        # 2) Write good records to staging and insert idempotently into target
+        # Staging table -> idempotent insert into target
         if good_rows > 0:
             staging_table = f"{STAGING_PREFIX}{STREAM_INSTANCE_ID}_{batch_id}"
 
-            # Overwrite is OK because table name is unique per batch_id; overwrite also creates schema if needed.
             (
                 good_batch.write
                 .mode("overwrite")
@@ -255,7 +247,6 @@ if __name__ == "__main__":
         .load()
     )
 
-    # Keep raw payload + Kafka metadata (useful for DLQ debugging)
     df_base = df_kafka.select(
         expr("CAST(value AS STRING)").alias("raw_payload"),
         col("topic").alias("kafka_topic"),
@@ -263,10 +254,8 @@ if __name__ == "__main__":
         col("offset").alias("kafka_offset"),
     )
 
-    # Parse JSON (keep raw_payload even if parsing fails -> e will be null)
     df_parsed = df_base.withColumn("e", from_json(col("raw_payload"), event_schema))
 
-    # Flatten parsed fields + transform types
     df_clean = (
         df_parsed
         .select(
@@ -276,13 +265,11 @@ if __name__ == "__main__":
             "kafka_offset",
             col("e.*"),
         )
-        # Producer sends ISO8601 with Z, e.g. 2026-02-22T01:23:45Z
         .withColumn("event_ts", to_timestamp(col("timestamp"), "yyyy-MM-dd'T'HH:mm:ss'Z'"))
         .withColumn("ingest_ts", current_timestamp())
         .drop("timestamp")
     )
 
-    # Build error_reason for DLQ routing
     df_with_reason = (
         df_clean
         .withColumn(
@@ -312,7 +299,6 @@ if __name__ == "__main__":
         df_with_reason.writeStream
         .foreachBatch(foreach_fn)
         .option("checkpointLocation", CHECKPOINT_DIR)
-        # foreachBatch ignores outputMode semantics; keep explicit
         .outputMode("update")
         .start()
     )

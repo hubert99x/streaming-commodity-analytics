@@ -1,3 +1,8 @@
+-- Drop old Spark batch staging tables, keeping the 2000 most recent.
+-- Staging tables accumulate (one per Spark micro-batch) and are NOT dropped
+-- by the streaming job itself to preserve crash-recovery durability.
+-- 2000 is about 8 days of batches at 6-min intervals - enough for debugging.
+
 DO $$
 DECLARE
     r RECORD;
@@ -9,12 +14,11 @@ BEGIN
                 schemaname,
                 tablename,
                 row_number() OVER (
-                    ORDER BY
-                        substring(tablename from 'raw_prices_ingest_stream1_([0-9]+)$')::bigint DESC
+                    ORDER BY tablename DESC
                 ) AS rn
             FROM pg_tables
             WHERE schemaname = 'ingest'
-              AND tablename LIKE 'raw_prices_ingest_stream1_%'
+              AND tablename LIKE 'raw_prices_ingest_%'
         ) t
         WHERE rn > 2000
     LOOP

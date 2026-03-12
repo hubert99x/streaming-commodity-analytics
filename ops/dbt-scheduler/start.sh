@@ -5,6 +5,7 @@ mkdir -p /var/log
 touch /var/log/dbt_run.log
 touch /var/log/dbt_test.log
 
+# Export only safe env vars for cron jobs (cron runs without the container's env)
 python3 - <<'PY'
 import os, shlex
 
@@ -30,11 +31,14 @@ cat > /etc/cron.d/dbt <<'EOF'
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# dbt run every 6 minutes
+# dbt run every 6 minutes (matches producer INTERVAL_SEC)
 */6 * * * * root bash -lc "source /ops/container_env.sh && /ops/run_dbt_run.sh" >> /var/log/dbt_run.log 2>&1
 
-# dbt test every 30 minutes (for demo dashboards)
+# dbt test every 30 minutes (less frequent - tests are heavier than model refreshes)
 */30 * * * * root bash -lc "source /ops/container_env.sh && /ops/run_dbt_test.sh" >> /var/log/dbt_test.log 2>&1
+
+# cleanup ingest staging tables every hour (keep last 2000)
+0 * * * * root bash -lc 'source /ops/container_env.sh && psql "host=${POSTGRES_HOST} port=${POSTGRES_PORT} dbname=${POSTGRES_DB} user=${POSTGRES_USER} password=${POSTGRES_PASSWORD}" -f /ops/sql/cleanup_ingest_keep_2000.sql && echo "[cleanup] $(date -Is) done"' >> /var/log/dbt_run.log 2>&1
 
 EOF
 

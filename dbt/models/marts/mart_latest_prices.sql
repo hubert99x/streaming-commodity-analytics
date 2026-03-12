@@ -1,3 +1,5 @@
+-- Most recent price per commodity (PostgreSQL DISTINCT ON picks the first row per group)
+
 select distinct on (commodity, symbol)
   commodity,
   symbol,

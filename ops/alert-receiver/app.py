@@ -43,6 +43,7 @@ def _get_first_alert(payload: dict) -> dict:
 
 
 def _pick(d: dict, *keys, default=None):
+    """Return first non-None value from candidate keys (handles Grafana version differences)."""
     for k in keys:
         v = d.get(k)
         if v is not None:

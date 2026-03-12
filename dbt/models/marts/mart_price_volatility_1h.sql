@@ -23,6 +23,7 @@ aggregated as (
         max(price) as max_price,
         stddev_samp(price) as price_stddev,
         max(price) - min(price) as price_range,
+        -- Normalized price range: (high - low) / avg - measures spread relative to price level
         case
             when avg(price) is not null and avg(price) <> 0
                 then (max(price) - min(price)) / avg(price)

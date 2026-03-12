@@ -27,18 +27,13 @@ TOPIC = os.getenv("KAFKA_TOPIC") or os.getenv("TOPIC") or "commodity_prices"
 TD_API_KEY = os.getenv("TD_API_KEY", "")
 SOURCE = os.getenv("SOURCE", "twelvedata_rest")
 
-# Polling interval between API pulls (seconds)
 INTERVAL_SEC = int(os.getenv("INTERVAL_SEC", "360"))
-
-# HTTP config
 HTTP_TIMEOUT_SEC = float(os.getenv("HTTP_TIMEOUT_SEC", "10"))
-# Backoff caps
 BACKOFF_MIN_SEC = int(os.getenv("BACKOFF_MIN_SEC", "15"))
 BACKOFF_MAX_SEC = int(os.getenv("BACKOFF_MAX_SEC", str(max(60, INTERVAL_SEC * 10))))
 
 TD_BASE = os.getenv("TD_BASE", "https://api.twelvedata.com")
 
-# Postgres config (for API metrics logging)
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "postgres")
 POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 POSTGRES_DB = os.getenv("POSTGRES_DB")
@@ -104,7 +99,6 @@ def clamp(n: int, lo: int, hi: int) -> int:
 
 def delivery_report(err, msg):
     if err is not None:
-        # Keep it short and explicit; msg may be large
         print(f"DELIVERY ERROR: {err}", flush=True)
 
 
@@ -115,7 +109,6 @@ def is_fx_weekend_closed(now_utc: datetime) -> bool:
     Re-opens Sunday 22:00:00 UTC.
     """
     if now_utc.tzinfo is None:
-        # Always operate in UTC; enforce timezone-aware datetime
         now_utc = now_utc.replace(tzinfo=timezone.utc)
     else:
         now_utc = now_utc.astimezone(timezone.utc)
@@ -193,7 +186,6 @@ def td_prices(symbols: List[str]) -> Dict[str, float]:
             log_api_call(",".join(symbols), r.status_code, latency_ms, False, "TD_ERROR", data.get("message"))
             raise RuntimeError(f"TD_ERROR: {data.get('message')}")
 
-        # SUCCESS
         log_api_call(",".join(symbols), r.status_code, latency_ms, True, None, None)
 
     except Exception as e:
@@ -203,6 +195,7 @@ def td_prices(symbols: List[str]) -> Dict[str, float]:
 
     out: Dict[str, float] = {}
 
+    # Twelve Data returns different JSON shapes depending on the number of symbols:
     # Case A: single symbol response: {"symbol":"BTC/USD","price":"..."}
     if isinstance(data, dict) and "symbol" in data and "price" in data:
         out[data["symbol"]] = float(data["price"])
@@ -220,7 +213,6 @@ def td_prices(symbols: List[str]) -> Dict[str, float]:
             if isinstance(v, dict) and v.get("price") is not None:
                 out[s] = float(v["price"])
 
-    # If parsing succeeded but no prices extracted, log full payload for debugging
     if not out:
         print(f"WARNING: No prices parsed from response: {data}", flush=True)
 
@@ -275,30 +267,24 @@ def main():
     # Ensure topic exists with correct partition count
     _ensure_topic(TOPIC, num_partitions=3)
 
-    # Production-safer Kafka producer settings
     producer = Producer(
         {
             "bootstrap.servers": KAFKA_BOOTSTRAP,
             "enable.idempotence": True,
             "acks": "all",
             "retries": 10,
-            # light batching (helps throughput, still low latency)
             "linger.ms": 50,
-            # avoid infinite blocking on full queue
             "queue.buffering.max.ms": 1000,
         }
     )
 
-    # Backoff state
     backoff_sec = 0
-    backoff_multiplier = 1  # grows on repeated errors, resets on success
+    backoff_multiplier = 1
 
     while _running:
-        # Apply any pending backoff
         if backoff_sec > 0:
             print(f"BACKOFF {backoff_sec}s", flush=True)
             slept = 0
-            # sleep in 1s chunks so SIGTERM stops quickly
             while _running and slept < backoff_sec:
                 time.sleep(1)
                 slept += 1
@@ -315,7 +301,6 @@ def main():
 
         symbols_list = active_symbols_for_fetch(now_utc)
 
-        # If FX gate is active, you may end up fetching only BTC/USD
         if not symbols_list:
             print(
                 f"SKIP CYCLE - no active symbols to fetch (now_utc={now_utc.isoformat()})",
@@ -329,13 +314,11 @@ def main():
 
         try:
             prices = td_prices(symbols_list)
-            # Success -> reset backoff growth
             backoff_multiplier = 1
 
         except RuntimeError as e:
             s = str(e)
             if s == "RATE_LIMIT_429":
-                # Stronger backoff on rate limit
                 backoff_sec = clamp(
                     max(BACKOFF_MIN_SEC, INTERVAL_SEC * 3),
                     BACKOFF_MIN_SEC,
@@ -345,7 +328,6 @@ def main():
                 continue
 
             if s.startswith("SERVER_"):
-                # Exponential backoff for server errors
                 backoff_multiplier = clamp(backoff_multiplier * 2, 1, 32)
                 backoff_sec = clamp(
                     INTERVAL_SEC * backoff_multiplier,
@@ -355,13 +337,11 @@ def main():
                 print(f"API {s}. Backing off for {backoff_sec}s.", flush=True)
                 continue
 
-            # Unknown runtime error
             backoff_sec = clamp(INTERVAL_SEC, BACKOFF_MIN_SEC, BACKOFF_MAX_SEC)
             print(f"ERROR batch request: {e}. Backing off for {backoff_sec}s.", flush=True)
             continue
 
         except Exception as e:
-            # Network timeouts, JSON parse, etc.
             backoff_multiplier = clamp(backoff_multiplier * 2, 1, 32)
             backoff_sec = clamp(
                 INTERVAL_SEC * backoff_multiplier,
@@ -371,7 +351,6 @@ def main():
             print(f"ERROR batch request: {e}. Backing off for {backoff_sec}s.", flush=True)
             continue
 
-        # Produce one event per commodity (publish only for currently allowed symbols)
         sent = 0
         for meta in SYMBOLS:
             commodity = meta["commodity"]
@@ -413,7 +392,6 @@ def main():
                 print(f"SENT {TOPIC}: {event}", flush=True)
 
             except BufferError:
-                # Local queue full: poll/flush a bit and retry once
                 producer.poll(1)
                 try:
                     producer.produce(
@@ -431,7 +409,6 @@ def main():
             except Exception as e:
                 print(f"ERROR produce for {commodity} ({symbol}): {e}", flush=True)
 
-        # Flush to ensure messages are delivered before sleeping.
         try:
             producer.flush(10)
         except Exception as e:
@@ -439,13 +416,11 @@ def main():
 
         print(f"CYCLE DONE: sent={sent} fetched={len(symbols_list)} now_utc={now_utc.isoformat()}", flush=True)
 
-        # Sleep until next cycle (interruptible)
         slept = 0
         while _running and slept < INTERVAL_SEC:
             time.sleep(1)
             slept += 1
 
-    # Final flush on shutdown
     try:
         producer.flush(10)
     except Exception:

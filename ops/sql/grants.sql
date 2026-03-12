@@ -5,7 +5,7 @@
 -- Run as postgres superuser.
 -- =========================================================
 
--- 0) Schemas
+-- 0) Schemas: ingest (Spark temp), analytics (dbt models), monitoring (ops metrics)
 CREATE SCHEMA IF NOT EXISTS ingest;
 CREATE SCHEMA IF NOT EXISTS analytics;
 CREATE SCHEMA IF NOT EXISTS monitoring;
@@ -20,7 +20,7 @@ CREATE SCHEMA IF NOT EXISTS monitoring;
 
 GRANT USAGE, CREATE ON SCHEMA ingest TO spark_writer;
 
--- tables created by Spark in ingest should be accessible to spark_writer
+-- DEFAULT PRIVILEGES: auto-grant on future tables created by Spark (one per micro-batch)
 ALTER DEFAULT PRIVILEGES IN SCHEMA ingest
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO spark_writer;
 
@@ -44,8 +44,8 @@ GRANT SELECT ON TABLE public.raw_prices TO dbt_runner;
 
 GRANT USAGE, CREATE ON SCHEMA analytics TO dbt_runner;
 
--- Ensure dbt-created tables/views are owned by dbt_runner (normal)
--- and future objects in analytics get readable by grafana_read:
+-- Auto-grant SELECT to grafana_read on future tables/views created by dbt_runner
+-- (so new dbt models are immediately visible in Grafana without manual grants)
 ALTER DEFAULT PRIVILEGES FOR USER dbt_runner IN SCHEMA analytics
 GRANT SELECT ON TABLES TO grafana_read;
 

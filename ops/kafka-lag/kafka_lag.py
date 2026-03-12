@@ -47,7 +47,11 @@ def write_lag(total_lag, max_lag):
 
 
 def get_processed_offsets():
-    """Returns {partition_id: max_kafka_offset} from raw_prices."""
+    """Returns {partition_id: max_kafka_offset} from raw_prices.
+
+    Queries the actual target table instead of Kafka consumer groups because
+    Spark uses checkpoint-based offsets, not consumer group commits.
+    """
     conn = get_connection()
     with conn:
         with conn.cursor() as cur:
@@ -71,6 +75,7 @@ def get_lag():
 
     processed = get_processed_offsets()
 
+    # Temporary consumer group - used only to query broker watermark offsets, not for consuming
     consumer = Consumer({"bootstrap.servers": KAFKA_BOOTSTRAP, "group.id": "__kafka_lag_inspector__"})
 
     total_lag = 0
@@ -78,6 +83,7 @@ def get_lag():
 
     try:
         for p in partition_ids:
+            # high = next offset to be assigned; last_processed+1 = first unprocessed
             _, high = consumer.get_watermark_offsets(TopicPartition(KAFKA_TOPIC, p), timeout=5)
             last_processed = processed.get(p, -1)
             lag = max(0, high - (last_processed + 1))

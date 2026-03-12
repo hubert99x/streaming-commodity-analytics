@@ -47,18 +47,20 @@ classified as (
         price,
         prev_price,
         pct_change,
+        -- Thresholds reflect each asset's typical volatility:
+        -- BTC (~1.5% daily) > XAU (~0.6%) > EUR/USD (~0.25%)
         case
-            -- BTC
+            -- BTC: high volatility - 1.5% / 0.7% / 0.3%
             when symbol = 'BTC/USD' and abs(pct_change) >= 0.015 then 'EXTREME_MOVE'
             when symbol = 'BTC/USD' and abs(pct_change) >= 0.007 then 'LARGE_MOVE'
             when symbol = 'BTC/USD' and abs(pct_change) >= 0.003 then 'MEDIUM_MOVE'
 
-            -- GOLD
+            -- GOLD: medium volatility - 0.6% / 0.3% / 0.15%
             when symbol = 'XAU/USD' and abs(pct_change) >= 0.006 then 'EXTREME_MOVE'
             when symbol = 'XAU/USD' and abs(pct_change) >= 0.003 then 'LARGE_MOVE'
             when symbol = 'XAU/USD' and abs(pct_change) >= 0.0015 then 'MEDIUM_MOVE'
 
-            -- EURUSD
+            -- EURUSD: low volatility - 0.25% / 0.12% / 0.06%
             when symbol = 'EUR/USD' and abs(pct_change) >= 0.0025 then 'EXTREME_MOVE'
             when symbol = 'EUR/USD' and abs(pct_change) >= 0.0012 then 'LARGE_MOVE'
             when symbol = 'EUR/USD' and abs(pct_change) >= 0.0006 then 'MEDIUM_MOVE'
@@ -66,6 +68,7 @@ classified as (
             else 'NORMAL'
         end as event_type
     from changes
+    -- Filter out first observation per commodity (no previous price to compare)
     where prev_price is not null
 
 )

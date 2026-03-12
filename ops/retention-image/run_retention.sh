@@ -10,7 +10,7 @@ echo "Starting retention job..."
 
 CONN="host=${POSTGRES_HOST} port=${POSTGRES_PORT} dbname=${POSTGRES_DB} user=${POSTGRES_USER}"
 
-# 1) Delete old raw data + analyze
+# 1) Delete raw data older than 90 days (balance between analytical depth and storage)
 psql "${CONN}" -v ON_ERROR_STOP=1 <<'SQL'
 DELETE FROM public.raw_prices
 WHERE event_ts < now() - interval '90 days';
@@ -34,7 +34,7 @@ BEGIN
 END $$;
 SQL
 
-# 3) Weekly vacuum (Sunday only)
+# 3) Weekly VACUUM on Sunday only to avoid blocking Spark writes during peak hours
 DOW="$(date +%u)"  # 1..7, 7=Sunday
 if [ "${DOW}" = "7" ]; then
   echo "Weekly VACUUM (ANALYZE) running..."

@@ -1,8 +1,11 @@
+-- Last observed price per minute bucket (most recent wins via ordered array_agg)
+
 select
   commodity,
   symbol,
   (date_trunc('minute', event_ts) AT TIME ZONE 'UTC') as minute_bucket,
 
+  -- Pick the latest price within the minute; event_id breaks ties
   (array_agg(price order by event_ts desc, event_id desc))[1] as last_price,
 
   count(*) as n,
