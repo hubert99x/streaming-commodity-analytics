@@ -10,6 +10,7 @@ from typing import Dict, List
 import requests
 import psycopg2
 from confluent_kafka import Producer
+from confluent_kafka.admin import AdminClient, NewTopic
 
 
 # ==========================================================
@@ -241,6 +242,19 @@ def _handle_stop(signum, frame):
     )
 
 
+def _ensure_topic(topic: str, num_partitions: int) -> None:
+    admin = AdminClient({"bootstrap.servers": KAFKA_BOOTSTRAP})
+    existing = admin.list_topics(timeout=10).topics
+    if topic not in existing:
+        fs = admin.create_topics([NewTopic(topic, num_partitions=num_partitions, replication_factor=1)])
+        fs[topic].result()
+        print(f"[producer] created topic '{topic}' with {num_partitions} partitions", flush=True)
+    else:
+        actual = len(existing[topic].partitions)
+        if actual != num_partitions:
+            print(f"[producer] WARNING: topic '{topic}' has {actual} partitions (expected {num_partitions}). Recreate manually.", flush=True)
+
+
 def main():
     global _running
 
@@ -257,6 +271,9 @@ def main():
         f"FX_WEEKEND_GATED_SYMBOLS={sorted(FX_WEEKEND_GATED_SYMBOLS)}",
         flush=True,
     )
+
+    # Ensure topic exists with correct partition count
+    _ensure_topic(TOPIC, num_partitions=3)
 
     # Production-safer Kafka producer settings
     producer = Producer(

@@ -41,42 +41,31 @@ services:
     restart: unless-stopped
 
   # =========================
-  # Zookeeper
-  # =========================
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.1
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    healthcheck:
-      test: ["CMD-SHELL", "echo srvr | nc -w 2 localhost 2181 | grep -i zookeeper >/dev/null 2>&1 || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 40
-      start_period: 10s
-    restart: unless-stopped
-
-  # =========================
-  # Kafka (Docker-only)
+  # Kafka (KRaft mode – no Zookeeper)
   # =========================
   kafka:
     image: confluentinc/cp-kafka:7.6.1
-    depends_on:
-      zookeeper:
-        condition: service_healthy
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      # KRaft settings
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
 
-      # Docker-internal only
-      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:29092"
+      # Listeners
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093"
       KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092"
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
       KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
 
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+
+      # KRaft log dirs
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
     healthcheck:
       test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092 >/dev/null 2>&1 || exit 1"]
       interval: 5s
@@ -169,15 +158,21 @@ services:
   # =========================
   spark:
     image: apache/spark:3.5.1
+    user: "0:0"
     depends_on:
       kafka:
         condition: service_healthy
       postgres:
         condition: service_healthy
     volumes:
-      - ./spark:/opt/spark-app
+      - ./spark:/opt/spark-app:ro
       - spark_ivy_cache:/home/spark/.ivy2
-    command: ["bash", "-lc", "sleep infinity"]
+    command:
+      - bash
+      - -lc
+      - |
+          chown -R 185:185 /home/spark/.ivy2
+          exec su -s /bin/bash spark -c 'sleep infinity'
     restart: unless-stopped
 
   # =========================
@@ -185,11 +180,7 @@ services:
   # =========================
   spark-stream:
     image: apache/spark:3.5.1
-
-    # Pragmatic choice: avoid permission issues with mounted volumes (checkpoints/ivy).
-    # If you later build a custom Spark image with a fixed UID/GID, you can remove this.
-    user: "0:0"
-
+    user: "0:0"        # root for chown only; spark-submit runs as spark (185)
     init: true
     stop_grace_period: 2m
 
@@ -217,20 +208,23 @@ services:
       SPARK_CHECKPOINT_DIR: /home/spark/checkpoints/raw_prices
 
     volumes:
-      - ./spark:/opt/spark-app
+      - ./spark:/opt/spark-app:ro
       - spark_ivy_cache:/home/spark/.ivy2
       - spark_checkpoints:/home/spark/checkpoints
 
+    # Start as root only to fix volume ownership, then drop to spark (185)
     command:
       - /bin/bash
       - -lc
       - |
+          chown -R 185:185 /home/spark/.ivy2 /home/spark/checkpoints
           mkdir -p /home/spark/checkpoints/raw_prices
-          exec /opt/spark/bin/spark-submit \
+          chown 185:185 /home/spark/checkpoints/raw_prices
+          exec su -s /bin/bash spark -c '/opt/spark/bin/spark-submit \
             --conf spark.sql.session.timeZone=UTC \
             --conf spark.jars.ivy=/home/spark/.ivy2 \
             --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgresql:postgresql:42.7.3 \
-            /opt/spark-app/stream_to_postgres.py
+            /opt/spark-app/stream_to_postgres.py'
     restart: unless-stopped
 
   # =========================

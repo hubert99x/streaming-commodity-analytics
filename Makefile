@@ -1,6 +1,6 @@
 COMPOSE = docker compose
 
-CORE_SERVICES = postgres zookeeper kafka spark-stream grafana producer dbt dbt-scheduler
+CORE_SERVICES = postgres kafka spark-stream grafana producer dbt dbt-scheduler
 OPS_SERVICES  = backup-cron retention
 
 .PHONY: real dev ps health logs logs-core restart down downv rebuild \
