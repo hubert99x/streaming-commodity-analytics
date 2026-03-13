@@ -1,6 +1,6 @@
 # Technical Documentation — Commodity Price Streaming System
 
-> Auto-generated critical analysis. Last updated: 2026-03-13.
+> Critical analysis. Last updated: 2026-03-13 (post-optimization revision).
 
 ---
 
@@ -110,15 +110,14 @@ All external ports bind to `127.0.0.1` (Grafana:3000, pgAdmin:5050, Kafka UI:808
                     ▼
  ┌─────────────────────────────────────────────┐
  │       SPARK STRUCTURED STREAMING             │
- │  Trigger: every 60s                          │
+ │  Trigger: every 300s                         │
  │  1. Read microbatch from Kafka               │
  │  2. Parse JSON, validate schema              │
  │  3. Route bad records → DLQ (monitoring)     │
- │  4. Deduplicate by event_id within batch     │
- │  5. Write to staging table (ingest schema)   │
- │  6. Acquire advisory lock                    │
- │  7. MERGE into raw_prices ON CONFLICT SKIP   │
- │  8. Release lock, truncate staging           │
+ │  4. Write to staging table (ingest schema)   │
+ │  5. Acquire advisory lock                    │
+ │  6. MERGE into raw_prices ON CONFLICT SKIP   │
+ │  7. Release lock, truncate staging           │
  └──────────────────┬──────────────────────────-┘
                     │
                     ▼
@@ -172,13 +171,13 @@ The pipeline achieves **effective exactly-once** semantics through layered idemp
 - **Deterministic event IDs:** UUID5 (DNS namespace + `commodity:ISO_timestamp`). Same commodity+timestamp always produces same ID, preventing semantic duplicates across retries.
 - **FX weekend gating:** XAU/USD and EUR/USD are not fetched Fri 22:00 – Sun 21:59 UTC. BTC runs 24/7.
 - **Three-tier backoff:** Rate limit (429) → fixed backoff; server error (5xx) → exponential backoff with multiplier (1→2→4→...32); other errors → interval-length backoff. All clamped to 15–600s range.
-- **Kafka producer config:** `enable.idempotence=True`, `acks=all`, `retries=10`, `linger.ms=50`.
+- **Kafka producer config:** `enable.idempotence=True`, `acks=all`, `retries=10`, `linger.ms=0`.
+- **Pre-publish price bounds validation:** Checks prices against commodity-specific bounds (XAU: 500–15000, BTC: 100–1M, EUR: 0.5–2.0) before publishing to Kafka. Out-of-bounds prices are logged and skipped, preventing pipeline contamination at the source.
 - **API metrics:** Each API call is logged to `monitoring.api_calls` (status code, latency, error message) via a lazy Postgres connection.
 - **Graceful shutdown:** SIGINT/SIGTERM handlers flush the Kafka producer buffer before exit.
 
 **Weaknesses:**
 - **Backoff multiplier never resets on success.** After a single transient 5xx error, the multiplier increments. Even if the next request succeeds, subsequent failures start from the elevated multiplier. Only a 429 rate-limit resets it. This can cause prolonged polling gaps after brief network hiccups.
-- **No price validation at source.** Garbage prices (negative, zero, astronomically large) flow unfiltered into Kafka. Validation only happens downstream in Spark. Earlier detection would reduce pipeline contamination latency.
 - **No circuit breaker.** Exponential backoff can reach 10+ minutes. There is no alert mechanism if the producer enters prolonged backoff — the system just goes quiet.
 - **Global mutable `_pg_conn`.** Safe in the current single-threaded design, but will silently corrupt if the producer is ever made concurrent.
 
@@ -187,19 +186,20 @@ The pipeline achieves **effective exactly-once** semantics through layered idemp
 **Role:** Consumes from Kafka, validates records, routes bad records to DLQ, writes good records to Postgres.
 
 **Key behaviors:**
-- **Trigger:** 60-second processing intervals. `maxOffsetsPerTrigger=5000` limits backpressure.
+- **Trigger:** 300-second processing intervals. `maxOffsetsPerTrigger=5000` limits backpressure.
 - **Offset management:** Checkpoint directory (not Kafka consumer groups). Each Spark instance maintains its own offset state.
-- **Validation pipeline:** Multi-level checks per record:
+- **Validation pipeline:** Multi-level checks per record (logic extracted to `spark/validation.py` for testability — 27 unit tests):
   - Null field detection (MISSING_FIELD errors)
   - Price positivity check
   - Schema version check (must be `1`)
   - Commodity-specific price bounds (XAU: 500–15000, BTC: 100–1M, EUR: 0.5–2.0)
 - **Staging table pattern:** Good records → `ingest.raw_prices_staging` (truncate-append-merge). PostgreSQL advisory lock (key 1) serializes concurrent merges.
 - **DLQ:** Bad records → `ingest.dlq_staging` → merged into `monitoring.dead_letter_events` with its own advisory lock (key 2) and unique constraint to prevent duplicates on batch replay.
-- **Intra-batch dedup:** `.dropDuplicates(["event_id"])` before staging write.
+- **JDBC timeouts:** `connectTimeout=10s`, `socketTimeout=30s` prevent indefinite hangs on Postgres connection issues.
+- **Health check:** Docker liveness probe (`ps aux | grep spark-submit`) detects process crashes.
+- **Deduplication:** Handled entirely by PostgreSQL `ON CONFLICT (event_id) DO NOTHING` — no in-batch `dropDuplicates` needed.
 
 **Weaknesses:**
-- **No health check.** The Spark streaming container has no liveness probe. If the streaming query silently fails (e.g., JDBC connection permanently lost), the container stays running but processes nothing. Detection relies entirely on downstream lag alerts, with a minimum 2-minute detection delay.
 - **DLQ write failures are silent.** If the DLQ staging insert fails, the error is logged to stdout but the bad records are permanently lost. No alert fires; no retry occurs.
 - **Price bounds are hardcoded.** Changing thresholds (e.g., if gold exceeds $15,000) requires a code change and container rebuild. No external configuration mechanism exists.
 - **Advisory lock unlock failures are swallowed.** If `pg_advisory_unlock` raises an exception (line 191), it is caught and logged but the lock remains held until the JDBC connection closes. If the connection persists, subsequent batches will deadlock waiting for the lock.
@@ -215,9 +215,10 @@ The pipeline achieves **effective exactly-once** semantics through layered idemp
 - Health heartbeat: writes timestamp to `/tmp/dbt_scheduler_alive`, checked by Docker health probe with 10-minute tolerance.
 - `dbt test` results parsed from `target/run_results.json` via `jq` and inserted into `monitoring.dbt_test_runs`.
 - 300-second timeout on subprocess execution.
+- **Automated ingest cleanup:** Periodically runs `cleanup_ingest_keep_2000.sql` to prune orphaned staging tables (configurable via `INGEST_CLEANUP_INTERVAL`, default 3600s).
+- **Non-root execution:** Runs as UID 1000 (`USER 1000` in Dockerfile). Container hardened with `cap_drop: ALL`.
 
 **Weaknesses:**
-- **Runs as root.** The Dockerfile inherits from the dbt base image without adding a `USER` directive. This is the only service running as root.
 - **If dbt build consistently exceeds 6 minutes, runs are silently skipped** (lock contention). There is no alert for "dbt build took too long" — only the file-marker health check would eventually fail after 10 minutes of no heartbeat.
 - **No build duration tracking.** There is no metric for how long each dbt build takes. Progressive slowdown (from table growth) would go unnoticed until it exceeds the 5-minute timeout.
 
@@ -228,10 +229,8 @@ The pipeline achieves **effective exactly-once** semantics through layered idemp
 **Key behaviors:**
 - `POST /grafana` accepts Grafana alert JSON.
 - Flexible field extraction handles Grafana API version differences.
-- Optional `X-Webhook-Token` header validation.
+- **Mandatory `X-Webhook-Token` header validation.** The service refuses to start without `ALERT_WEBHOOK_TOKEN` set, unless explicitly opted out with `ALERT_WEBHOOK_AUTH_DISABLED=true`.
 - Stores raw JSONB payload alongside parsed fields for debugging.
-
-**Weakness:** The webhook token validation is implemented but **not enforced by default** — the env var defaults to empty string, which disables the check. Any service on the `frontend` network can post fake alerts.
 
 ### 3.5 Kafka Lag Monitor (`ops/kafka-lag/kafka_lag.py`)
 
@@ -284,6 +283,17 @@ commodities (database)
     └── kafka_lag_latest (view) ← Latest lag per group
 ```
 
+### PostgreSQL Tuning
+
+PostgreSQL is configured with performance tuning via `docker-compose.yml` command flags:
+
+| Parameter | Value | Purpose |
+|-----------|-------|---------|
+| `shared_buffers` | 128MB | Increased from default 32MB for better caching |
+| `effective_cache_size` | 384MB | Helps query planner choose index scans |
+| `random_page_cost` | 1.1 | Tuned for SSD/container storage (default 4.0) |
+| `checkpoint_completion_target` | 0.9 | Spreads checkpoint writes over longer period |
+
 ### `raw_prices` Table Schema
 
 ```sql
@@ -305,6 +315,7 @@ kafka_offset    BIGINT                -- Audit trail
 |-------|---------|---------|
 | `idx_raw_prices_commodity_event_ts` | (commodity, event_ts DESC, event_id DESC) | Latest price per commodity queries |
 | `idx_raw_prices_event_ts` | (event_ts DESC) | Time-range filters, staleness checks |
+| `idx_raw_prices_event_ts_brin` | (event_ts) BRIN | Efficient time-range scans with minimal storage overhead |
 | `idx_raw_prices_partition_offset` | (kafka_partition, kafka_offset DESC) | Kafka lag monitor |
 | `uq_dlq_event` (unique) | (stream_instance_id, batch_id, kafka_partition, kafka_offset) | DLQ batch replay dedup |
 
@@ -326,6 +337,8 @@ kafka_offset    BIGINT                -- Audit trail
 
 ## 5. dbt Transformation Layer
 
+**Configuration:** Profile `commodity_dbt`, target `dev`, schema `analytics`, **4 threads** for parallel model execution.
+
 ### Model Dependency Graph
 
 ```
@@ -343,7 +356,7 @@ stg_raw_prices (VIEW)
 ### Model Details
 
 #### `stg_raw_prices` (View)
-Pass-through with explicit type casts and timezone normalization (`timestamptz` → naive UTC). Preserves Kafka partition/offset for lineage tracing.
+Pass-through with explicit type casts and timezone normalization (`timestamptz` → naive UTC). Preserves Kafka partition/offset for lineage tracing. Defined via `{{ source('public', 'raw_prices') }}` with **source freshness SLA** (warn after 10 minutes, error after 20 minutes).
 
 #### `mart_latest_prices` (Table, full rebuild)
 One row per commodity. Uses PostgreSQL `DISTINCT ON` with a 24-hour optimization window — scans last 24 hours first, falls back to full scan only for commodities missing from that window.
@@ -360,7 +373,7 @@ Detects significant price movements using `LAG()` window function with **commodi
 | XAU/USD | ≥ 0.6% | ≥ 0.3% | ≥ 0.15% |
 | EUR/USD | ≥ 0.25% | ≥ 0.12% | ≥ 0.06% |
 
-Excludes observations after a >30-minute gap (prevents false extreme events from FX weekend close/reopen). Only outputs non-NORMAL events.
+Excludes observations after a >30-minute gap (prevents false extreme events from FX weekend close/reopen). Only outputs non-NORMAL events. Uses deterministic `LAG()` ordering (`ORDER BY event_ts, event_id`) to prevent non-deterministic results on timestamp ties.
 
 #### `mart_price_volatility_1h` (Incremental, 2-hour lookback)
 Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes current incomplete hour.
@@ -372,7 +385,6 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 - **Custom SQL test:** `test_price_jump.sql` — detects unrealistic minute-to-minute jumps per commodity (EUR >5%, XAU >10%, BTC >30%).
 
 **Weaknesses:**
-- **No mart freshness tests.** There is no check that `mart_latest_prices.last_timestamp` is recent. If dbt fails silently, marts go stale with no alert.
 - **Incremental lookback edge case.** If `dbt build` is skipped for >30 minutes (scheduler blocked or container restarting), `mart_minute_last_price`'s 30-minute lookback window may miss late-arriving data from before the gap.
 - **`mart_latest_prices` is fully rebuilt each run.** As `raw_prices` grows, this will become slower. The 24-hour optimization helps but has a fallback full scan for any commodity missing from the window.
 - **Hardcoded thresholds.** Price event thresholds and bounds are embedded in SQL. Changing them requires a dbt rebuild and potential reprocessing of the incremental lookback window.
@@ -405,7 +417,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 
 ### Monitoring Gaps
 
-1. **No dbt health alert.** If `dbt build` fails repeatedly, marts go stale. No alert fires because alerts monitor `raw_prices` (upstream), not mart freshness.
+1. ~~**No dbt health alert.**~~ **Partially addressed.** dbt source freshness SLA (warn 10m, error 20m) detects stale `raw_prices` input. However, there is still no alert for dbt build *failures* — if dbt crashes but `raw_prices` keeps flowing, no alert fires.
 2. **No dbt build duration tracking.** Progressive slowdown from table growth would go unnoticed.
 3. **No per-partition Kafka lag.** Only total lag is alerted on. A single stuck partition could be masked by healthy partitions.
 4. **No Spark streaming metrics.** Microbatch duration, watermark lag, and task counts are not exposed.
@@ -422,12 +434,16 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 | Control | Implementation |
 |---------|---------------|
 | No-new-privileges | `security_opt: no-new-privileges:true` on all containers |
-| Capability drop | `cap_drop: ALL` on Spark, producer, alert-receiver, kafka-lag, retention |
+| Capability drop | `cap_drop: ALL` on Spark, producer, alert-receiver, kafka-lag, retention, dbt-scheduler |
 | Read-only rootfs | Spark, producer, alert-receiver, kafka-lag |
-| Non-root users | Producer (appuser), alert-receiver (appuser), kafka-lag (appuser), Spark (uid 185) |
+| Non-root users | Producer (appuser), alert-receiver (appuser), kafka-lag (appuser), Spark (uid 185 via setpriv), dbt-scheduler (uid 1000) |
+| Webhook auth | Alert-receiver requires `ALERT_WEBHOOK_TOKEN` (mandatory unless explicitly disabled) |
 | tmpfs /tmp | Producer, alert-receiver (no persistent writable disk) |
 | Slim base images | python:3.11-slim, python:3.12-slim |
-| Trivy scanning | CI pipeline scans filesystem + 5 custom images at HIGH/CRITICAL level |
+| Trivy scanning | CI pipeline scans filesystem + 5 custom images (OS + library vulnerabilities) at HIGH/CRITICAL level |
+| Pre-commit hooks | gitleaks (secret scanning) + ruff (Python linting) via `.pre-commit-config.yaml` |
+| CI supply chain | All GitHub Actions SHA-pinned to prevent tag-based supply chain attacks |
+| Trivy ignore policy | `.trivyignore` with expiry dates (`Expires: YYYY-MM-DD`) for quarterly review |
 | Port binding | All external ports bound to 127.0.0.1 |
 | RBAC | 5 distinct database roles with least-privilege grants |
 
@@ -437,13 +453,11 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 |---|----------|-------|
 | 1 | **CRITICAL** | All default passwords are `change_me` (.env.example). No enforcement of strong passwords or rotation policy. |
 | 2 | **HIGH** | No TLS anywhere. Postgres: `sslmode=disable`. Kafka: PLAINTEXT only. Grafana webhook: HTTP. All credentials traverse the network in cleartext. |
-| 3 | **HIGH** | dbt-scheduler runs as root. Only service without a non-root USER directive. |
-| 4 | **HIGH** | `PGPASSWORD` for backup-user is exposed in environment (visible via `docker inspect`, `/proc`). |
-| 5 | **MEDIUM** | Webhook token validation not enforced by default (env var defaults to empty string). |
-| 6 | **MEDIUM** | No PostgreSQL audit logging (`log_statement` not configured). |
-| 7 | **MEDIUM** | No Kafka authentication (SASL). Any service on the `messaging` network can produce/consume. |
-| 8 | **LOW** | Data at rest unencrypted (pgdata volume, backup files, Kafka data). |
-| 9 | **LOW** | No egress filtering. A compromised container can reach any external endpoint. |
+| 3 | **HIGH** | `PGPASSWORD` for backup-user is exposed in environment (visible via `docker inspect`, `/proc`). |
+| 4 | **MEDIUM** | No PostgreSQL audit logging (`log_statement` not configured). |
+| 5 | **MEDIUM** | No Kafka authentication (SASL). Any service on the `messaging` network can produce/consume. |
+| 6 | **LOW** | Data at rest unencrypted (pgdata volume, backup files, Kafka data). |
+| 7 | **LOW** | No egress filtering. A compromised container can reach any external endpoint. |
 
 **Assessment:** The security posture is appropriate for a single-machine development/thesis environment. It is **not production-ready** without TLS, credential management, and audit logging.
 
@@ -543,18 +557,19 @@ make downv             # Stop + delete volumes (DESTROYS ALL DATA)
 
 | Workflow | Trigger | Actions | Duration |
 |----------|---------|---------|----------|
-| `python-quality.yml` | Push to main, PRs | Ruff lint + pytest | ~30s |
-| `dbt-ci.yml` | Push to main, PRs | dbt build against ephemeral Postgres (3-row seed) | ~60s |
-| `security-trivy.yml` | Push to main, PRs | Filesystem scan + 5 image scans (HIGH/CRITICAL) | ~5m |
+| `python-quality.yml` | Push to main, PRs | Ruff lint + pytest (SHA-pinned actions) | ~30s |
+| `dbt-ci.yml` | Push to main, PRs | dbt build against ephemeral Postgres (31-row seed, 2-pass: full-refresh + incremental) | ~60s |
+| `security-trivy.yml` | Push to main, PRs | Filesystem scan + 5 image scans (OS + library, HIGH/CRITICAL) | ~5m |
+
+All GitHub Actions are SHA-pinned to prevent supply chain attacks. The `.trivyignore` file uses structured entries with `Added:` and `Expires:` dates for quarterly review.
 
 ### CI Weaknesses
 
 1. **No integration test.** The CI never tests the actual pipeline (Producer → Kafka → Spark → Postgres → dbt). Each component is tested in isolation, if at all.
-2. **No test coverage threshold.** pytest runs but has no minimum coverage gate. Current test coverage is limited to pure utility functions in the producer.
+2. **No test coverage threshold.** pytest runs but has no minimum coverage gate. Test coverage includes producer utilities and Spark validation (27 tests in `tests/test_spark_validation.py`).
 3. **No Docker Compose build verification.** `docker compose build` is never run in CI. A broken Dockerfile won't be caught until manual deployment.
-4. **dbt CI uses 3-row seed data.** Incremental model logic (lookback windows, deduplication, LAG functions) is barely exercised. The seed doesn't test edge cases like late arrivals or FX weekend gaps.
-5. **No branch protection enforced.** PRs can merge without passing CI checks.
-6. **No image registry.** Images are built locally only; no versioned artifacts.
+4. **No branch protection enforced.** PRs can merge without passing CI checks.
+5. **No image registry.** Images are built locally only; no versioned artifacts.
 
 ---
 
@@ -572,39 +587,38 @@ make downv             # Stop + delete volumes (DESTROYS ALL DATA)
 
 | # | Issue | Impact | Recommendation |
 |---|-------|--------|----------------|
-| 4 | **Spark has no health check** | Silent streaming failure; 2+ minute detection lag via downstream alerts only | Add a `/health` sidecar or liveness script that checks query status |
-| 5 | **DLQ write failures are silent** | Permanent data loss for malformed records with no alert | Add DLQ write failure counter; alert on non-zero |
-| 6 | **dbt-scheduler runs as root** | Container escape risk; unnecessary privilege | Add `USER` directive to Dockerfile |
-| 7 | **Monitoring tables grow unbounded** | Disk exhaustion over time | Add retention policy for all monitoring tables (30-90 day TTL) |
-| 8 | **Backoff multiplier doesn't reset on success** | Prolonged polling gaps after transient errors | Reset multiplier to 1 after any successful API response |
+| 4 | **DLQ write failures are silent** | Permanent data loss for malformed records with no alert | Add DLQ write failure counter; alert on non-zero |
+| 5 | **Monitoring tables grow unbounded** | Disk exhaustion over time | Add retention policy for all monitoring tables (30-90 day TTL) |
+| 6 | **Backoff multiplier doesn't reset on success** | Prolonged polling gaps after transient errors | Reset multiplier to 1 after any successful API response |
 
 ### Severity: Medium
 
 | # | Issue | Impact | Recommendation |
 |---|-------|--------|----------------|
-| 9 | **No dbt model freshness alert** | Stale mart data served to Grafana without warning | Add dbt source freshness test or mart timestamp check alert |
-| 10 | **Single-node Kafka (RF=1)** | Any Kafka failure = full pipeline outage + potential data loss | Document as known limitation; for production, deploy 3-node cluster |
-| 11 | **Retention service is manual** | raw_prices grows unbounded unless operator remembers to run retention | Automate via cron or integrate into backup-cron schedule |
-| 12 | **No per-partition Kafka lag alert** | Single stuck partition masked by total lag metric | Add `max_partition_lag` threshold alert |
-| 13 | **Price bounds and event thresholds are hardcoded** | Changing market conditions require code changes + rebuilds | Externalize to config file or dbt vars |
-| 14 | **Advisory lock unlock failure silently swallowed** | Potential batch-level deadlock until connection close | Add retry logic and explicit logging |
+| 7 | **Single-node Kafka (RF=1)** | Any Kafka failure = full pipeline outage + potential data loss | Document as known limitation; for production, deploy 3-node cluster |
+| 8 | **Retention service is manual** | raw_prices grows unbounded unless operator remembers to run retention | Automate via cron or integrate into backup-cron schedule |
+| 9 | **No per-partition Kafka lag alert** | Single stuck partition masked by total lag metric | Add `max_partition_lag` threshold alert |
+| 10 | **Price bounds and event thresholds are hardcoded** | Changing market conditions require code changes + rebuilds | Externalize to config file or dbt vars |
+| 11 | **Advisory lock unlock failure silently swallowed** | Potential batch-level deadlock until connection close | Add retry logic and explicit logging |
 
 ### Severity: Low
 
 | # | Issue | Impact | Recommendation |
 |---|-------|--------|----------------|
-| 15 | No Kubernetes manifests | Cannot scale beyond single machine | Out of scope for thesis; document limitation |
-| 16 | Grafana dashboards are JSON (not version-controlled YAML) | Brittle to edit, hard to diff | Acceptable for provisioned dashboards |
-| 17 | No structured logging | Harder to aggregate logs across services | Use Python `logging` with JSON formatter |
-| 18 | `mart_latest_prices` full rebuild every 6m | Will slow down as raw_prices grows | Add incremental strategy or materialized view |
+| 12 | No Kubernetes manifests | Cannot scale beyond single machine | Out of scope for thesis; document limitation |
+| 13 | Grafana dashboards are JSON (not version-controlled YAML) | Brittle to edit, hard to diff | Acceptable for provisioned dashboards |
+| 14 | No structured logging | Harder to aggregate logs across services | Use Python `logging` with JSON formatter |
+| 15 | `mart_latest_prices` full rebuild every 6m | Will slow down as raw_prices grows | Add incremental strategy or materialized view |
 
 ### Overall Assessment
 
 The system demonstrates strong architectural foundations: idempotent data flow, role-based access control, checkpoint-based exactly-once semantics, commodity-aware analytics, and comprehensive alert coverage. The design choices are well-reasoned for the stated use case (3 instruments, 6-minute intervals, single-machine deployment).
 
-The primary weaknesses cluster around **operational maturity** (no TLS, default credentials, missing health checks, unbounded table growth) and **test coverage** (no integration tests, minimal unit tests, no CI composition verification). These are consistent with a thesis/prototype system and would need to be addressed before any production deployment.
+The primary weaknesses cluster around **operational maturity** (no TLS, default credentials, unbounded monitoring table growth) and **test coverage** (no integration tests, no CI composition verification). These are consistent with a thesis/prototype system and would need to be addressed before any production deployment.
 
-For the thesis context, the most impactful improvements would be:
+Recent improvements have addressed several previously critical gaps: Spark health checks, dbt source freshness monitoring, non-root container execution across all services, mandatory webhook authentication, pre-publish price validation, JDBC timeouts, CI supply chain security (SHA-pinned actions), and expanded dbt CI seed data with two-pass incremental testing.
+
+For the thesis context, the most impactful remaining improvements would be:
 1. Adding an integration test that exercises the full pipeline end-to-end
-2. Implementing dbt model freshness monitoring (closing the observability gap)
-3. Automating the retention service (preventing the most likely operational failure)
+2. Automating the retention service (preventing the most likely operational failure)
+3. Adding DLQ write failure alerting (closing the last silent data loss path)
