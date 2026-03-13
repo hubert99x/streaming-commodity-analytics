@@ -79,16 +79,52 @@ jobs:
             );
           "
 
-      - name: Seed minimal raw_prices data
+      - name: Seed raw_prices data (edge cases for incremental + aggregation testing)
         env:
           PGPASSWORD: postgres
         run: |
           psql -h 127.0.0.1 -U postgres -d commodities -c "
-            INSERT INTO public.raw_prices (event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts)
+            INSERT INTO public.raw_prices
+              (event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts, kafka_partition, kafka_offset)
             VALUES
-              ('ci-event-1', 'gold', 'XAU/USD', 2150.25, 'USD', NOW() - INTERVAL '2 minutes', 'ci_seed', NOW()),
-              ('ci-event-2', 'bitcoin', 'BTC/USD', 65000.00, 'USD', NOW() - INTERVAL '1 minute', 'ci_seed', NOW()),
-              ('ci-event-3', 'eurusd', 'EUR/USD', 1.0850, 'USD', NOW(), 'ci_seed', NOW())
+              -- Gold: 10 observations spanning 2 hours (tests incremental lookback + volatility)
+              ('ci-xau-01', 'gold', 'XAU/USD', 2150.25, 'USD', NOW() - INTERVAL '120 minutes', 'ci_seed', NOW() - INTERVAL '119 minutes', 0, 100),
+              ('ci-xau-02', 'gold', 'XAU/USD', 2148.00, 'USD', NOW() - INTERVAL '108 minutes', 'ci_seed', NOW() - INTERVAL '107 minutes', 0, 101),
+              ('ci-xau-03', 'gold', 'XAU/USD', 2155.50, 'USD', NOW() - INTERVAL '96 minutes',  'ci_seed', NOW() - INTERVAL '95 minutes',  0, 102),
+              ('ci-xau-04', 'gold', 'XAU/USD', 2160.00, 'USD', NOW() - INTERVAL '84 minutes',  'ci_seed', NOW() - INTERVAL '83 minutes',  0, 103),
+              ('ci-xau-05', 'gold', 'XAU/USD', 2145.00, 'USD', NOW() - INTERVAL '72 minutes',  'ci_seed', NOW() - INTERVAL '71 minutes',  0, 104),
+              ('ci-xau-06', 'gold', 'XAU/USD', 2152.00, 'USD', NOW() - INTERVAL '60 minutes',  'ci_seed', NOW() - INTERVAL '59 minutes',  0, 105),
+              ('ci-xau-07', 'gold', 'XAU/USD', 2158.75, 'USD', NOW() - INTERVAL '48 minutes',  'ci_seed', NOW() - INTERVAL '47 minutes',  0, 106),
+              ('ci-xau-08', 'gold', 'XAU/USD', 2162.30, 'USD', NOW() - INTERVAL '36 minutes',  'ci_seed', NOW() - INTERVAL '35 minutes',  0, 107),
+              ('ci-xau-09', 'gold', 'XAU/USD', 2150.00, 'USD', NOW() - INTERVAL '24 minutes',  'ci_seed', NOW() - INTERVAL '23 minutes',  0, 108),
+              ('ci-xau-10', 'gold', 'XAU/USD', 2153.40, 'USD', NOW() - INTERVAL '6 minutes',   'ci_seed', NOW() - INTERVAL '5 minutes',   0, 109),
+
+              -- BTC: 10 observations with a large move (tests price_events thresholds)
+              ('ci-btc-01', 'bitcoin', 'BTC/USD', 65000.00, 'USD', NOW() - INTERVAL '120 minutes', 'ci_seed', NOW() - INTERVAL '119 minutes', 1, 200),
+              ('ci-btc-02', 'bitcoin', 'BTC/USD', 65100.00, 'USD', NOW() - INTERVAL '108 minutes', 'ci_seed', NOW() - INTERVAL '107 minutes', 1, 201),
+              ('ci-btc-03', 'bitcoin', 'BTC/USD', 65050.00, 'USD', NOW() - INTERVAL '96 minutes',  'ci_seed', NOW() - INTERVAL '95 minutes',  1, 202),
+              ('ci-btc-04', 'bitcoin', 'BTC/USD', 64800.00, 'USD', NOW() - INTERVAL '84 minutes',  'ci_seed', NOW() - INTERVAL '83 minutes',  1, 203),
+              ('ci-btc-05', 'bitcoin', 'BTC/USD', 64500.00, 'USD', NOW() - INTERVAL '72 minutes',  'ci_seed', NOW() - INTERVAL '71 minutes',  1, 204),
+              ('ci-btc-06', 'bitcoin', 'BTC/USD', 65500.00, 'USD', NOW() - INTERVAL '60 minutes',  'ci_seed', NOW() - INTERVAL '59 minutes',  1, 205),
+              ('ci-btc-07', 'bitcoin', 'BTC/USD', 65800.00, 'USD', NOW() - INTERVAL '48 minutes',  'ci_seed', NOW() - INTERVAL '47 minutes',  1, 206),
+              ('ci-btc-08', 'bitcoin', 'BTC/USD', 66200.00, 'USD', NOW() - INTERVAL '36 minutes',  'ci_seed', NOW() - INTERVAL '35 minutes',  1, 207),
+              ('ci-btc-09', 'bitcoin', 'BTC/USD', 66000.00, 'USD', NOW() - INTERVAL '24 minutes',  'ci_seed', NOW() - INTERVAL '23 minutes',  1, 208),
+              ('ci-btc-10', 'bitcoin', 'BTC/USD', 66100.00, 'USD', NOW() - INTERVAL '6 minutes',   'ci_seed', NOW() - INTERVAL '5 minutes',   1, 209),
+
+              -- EUR/USD: 10 observations (low volatility asset)
+              ('ci-eur-01', 'eurusd', 'EUR/USD', 1.0850, 'USD', NOW() - INTERVAL '120 minutes', 'ci_seed', NOW() - INTERVAL '119 minutes', 2, 300),
+              ('ci-eur-02', 'eurusd', 'EUR/USD', 1.0852, 'USD', NOW() - INTERVAL '108 minutes', 'ci_seed', NOW() - INTERVAL '107 minutes', 2, 301),
+              ('ci-eur-03', 'eurusd', 'EUR/USD', 1.0848, 'USD', NOW() - INTERVAL '96 minutes',  'ci_seed', NOW() - INTERVAL '95 minutes',  2, 302),
+              ('ci-eur-04', 'eurusd', 'EUR/USD', 1.0855, 'USD', NOW() - INTERVAL '84 minutes',  'ci_seed', NOW() - INTERVAL '83 minutes',  2, 303),
+              ('ci-eur-05', 'eurusd', 'EUR/USD', 1.0845, 'USD', NOW() - INTERVAL '72 minutes',  'ci_seed', NOW() - INTERVAL '71 minutes',  2, 304),
+              ('ci-eur-06', 'eurusd', 'EUR/USD', 1.0860, 'USD', NOW() - INTERVAL '60 minutes',  'ci_seed', NOW() - INTERVAL '59 minutes',  2, 305),
+              ('ci-eur-07', 'eurusd', 'EUR/USD', 1.0858, 'USD', NOW() - INTERVAL '48 minutes',  'ci_seed', NOW() - INTERVAL '47 minutes',  2, 306),
+              ('ci-eur-08', 'eurusd', 'EUR/USD', 1.0862, 'USD', NOW() - INTERVAL '36 minutes',  'ci_seed', NOW() - INTERVAL '35 minutes',  2, 307),
+              ('ci-eur-09', 'eurusd', 'EUR/USD', 1.0840, 'USD', NOW() - INTERVAL '24 minutes',  'ci_seed', NOW() - INTERVAL '23 minutes',  2, 308),
+              ('ci-eur-10', 'eurusd', 'EUR/USD', 1.0855, 'USD', NOW() - INTERVAL '6 minutes',   'ci_seed', NOW() - INTERVAL '5 minutes',   2, 309),
+
+              -- Duplicate event_id (tests ON CONFLICT / unique constraints)
+              ('ci-xau-01', 'gold', 'XAU/USD', 9999.99, 'USD', NOW() - INTERVAL '120 minutes', 'ci_seed', NOW() - INTERVAL '119 minutes', 0, 100)
             ON CONFLICT (event_id) DO NOTHING;
           "
 
@@ -97,7 +133,14 @@ jobs:
           cd dbt
           dbt deps --profiles-dir ../.ci/dbt
 
-      - name: Run dbt build
+      - name: Run dbt build (full refresh)
+        run: |
+          cd dbt
+          dbt build --full-refresh --profiles-dir ../.ci/dbt
+        env:
+          DBT_PROFILES_DIR: /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/dbt
+
+      - name: Run dbt build (incremental — verifies incremental logic)
         run: |
           cd dbt
           dbt build --profiles-dir ../.ci/dbt

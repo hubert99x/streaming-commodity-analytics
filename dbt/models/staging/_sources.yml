@@ -1,0 +1,22 @@
+version: 2
+
+sources:
+  - name: public
+    schema: public
+    description: "Raw data ingested by Spark Structured Streaming"
+    tables:
+      - name: raw_prices
+        description: "Commodity price events from Kafka via Spark"
+        loaded_at_field: ingest_ts
+        freshness:
+          warn_after: {count: 10, period: minute}
+          error_after: {count: 20, period: minute}
+        columns:
+          - name: event_id
+            description: "Deterministic UUID5 primary key"
+          - name: commodity
+            description: "Commodity key (gold, bitcoin, eurusd)"
+          - name: event_ts
+            description: "Event timestamp from API"
+          - name: ingest_ts
+            description: "Ingestion timestamp (Spark write time)"

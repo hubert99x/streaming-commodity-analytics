@@ -49,6 +49,14 @@ SYMBOLS = [
 # FX weekend gating: skip publish (and skip fetching, in this implementation) from Fri 22:00 UTC to Sun 21:59:59 UTC
 FX_WEEKEND_GATED_SYMBOLS = {"EUR/USD", "XAU/USD"}
 
+# Per-symbol sanity bounds — reject absurd API values before they reach Kafka.
+# Same thresholds as Spark validation (spark/validation.py) for defense-in-depth.
+PRICE_BOUNDS: Dict[str, tuple] = {
+    "XAU/USD": (500.0, 15_000.0),
+    "BTC/USD": (100.0, 1_000_000.0),
+    "EUR/USD": (0.5, 2.0),
+}
+
 
 # ==========================================================
 # API Metrics Logging (Postgres) — lazy singleton connection
@@ -285,7 +293,7 @@ def main():
             "enable.idempotence": True,
             "acks": "all",
             "retries": 10,
-            "linger.ms": 50,
+            "linger.ms": 0,
             "queue.buffering.max.ms": 1000,
         }
     )
@@ -379,6 +387,17 @@ def main():
             if price is None:
                 print(f"SKIP {commodity} ({symbol}) - no price in batch response", flush=True)
                 continue
+
+            # Pre-publish sanity check: reject absurd API values before Kafka
+            bounds = PRICE_BOUNDS.get(symbol)
+            if bounds is not None:
+                lo, hi = bounds
+                if price < lo or price > hi:
+                    print(
+                        f"REJECT {commodity} ({symbol}) - price {price} out of range [{lo}, {hi}]",
+                        flush=True,
+                    )
+                    continue
 
             # Deterministic event_id: same (commodity, timestamp) always produces the same ID,
             # preventing semantic duplicates if the application retries a publish attempt.

@@ -13,4 +13,4 @@ select
   -- Kafka metadata retained for debugging (trace bad mart records back to source)
   kafka_partition::integer as kafka_partition,
   kafka_offset::bigint as kafka_offset
-from public.raw_prices
+from {{ source('public', 'raw_prices') }}

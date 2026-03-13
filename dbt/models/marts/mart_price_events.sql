@@ -17,11 +17,11 @@ with base as (
         price,
         lag(price) over (
             partition by commodity, symbol
-            order by event_ts
+            order by event_ts, event_id
         ) as prev_price,
         lag(event_ts) over (
             partition by commodity, symbol
-            order by event_ts
+            order by event_ts, event_id
         ) as prev_event_ts
     from {{ ref('stg_raw_prices') }}
     {% if is_incremental() %}

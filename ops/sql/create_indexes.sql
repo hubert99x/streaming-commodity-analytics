@@ -9,6 +9,11 @@ ON public.raw_prices (commodity, event_ts DESC, event_id DESC);
 CREATE INDEX IF NOT EXISTS idx_raw_prices_event_ts
 ON public.raw_prices (event_ts DESC);
 
+-- BRIN index for time-range scans (dbt incremental lookbacks, Grafana time filters).
+-- Ideal for append-only, naturally time-ordered data — ~100x smaller than B-tree equivalent.
+CREATE INDEX IF NOT EXISTS idx_raw_prices_event_ts_brin
+ON public.raw_prices USING brin (event_ts);
+
 -- Covers kafka lag monitor query (MAX(kafka_offset) per partition)
 CREATE INDEX IF NOT EXISTS idx_raw_prices_partition_offset
 ON public.raw_prices (kafka_partition, kafka_offset DESC);

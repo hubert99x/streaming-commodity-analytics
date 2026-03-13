@@ -20,7 +20,6 @@ from pyspark.sql.types import (
     StructField,
     StructType,
 )
-from pyspark.storagelevel import StorageLevel
 import pyspark.sql.functions as F
 
 
@@ -94,11 +93,13 @@ def _get_jdbc_driver(spark: SparkSession):
 
 
 def _get_jdbc_props(spark: SparkSession):
-    """Build JDBC connection properties."""
+    """Build JDBC connection properties with connect/socket timeouts."""
     jvm = spark._sc._jvm
     props = jvm.java.util.Properties()
     props.setProperty("user", POSTGRES_USER)
     props.setProperty("password", POSTGRES_PASSWORD)
+    props.setProperty("connectTimeout", "10")   # 10 seconds to establish connection
+    props.setProperty("socketTimeout", "30")     # 30 seconds for query execution
     return props
 
 
@@ -197,7 +198,6 @@ def _staging_cycle(spark, jdbc_props, batch_df, *, staging_table, merge_sql, loc
 def make_foreach_batch(spark: SparkSession):
     """
     foreachBatch handler:
-    - persist microbatch once
     - compute good/bad counts with a single agg
     - write bad rows to DLQ (best-effort)
     - TRUNCATE persistent staging table, write good rows, then INSERT ... ON CONFLICT
@@ -222,81 +222,75 @@ def make_foreach_batch(spark: SparkSession):
             "driver": PG_DRIVER,
         }
 
-        persisted = batch_df.persist(StorageLevel.MEMORY_AND_DISK)
-
-        try:
-            counts = (
-                persisted
-                .agg(
-                    F.sum(F.when(F.col("error_reason").isNull(), F.lit(1)).otherwise(F.lit(0))).alias("good_rows"),
-                    F.sum(F.when(F.col("error_reason").isNotNull(), F.lit(1)).otherwise(F.lit(0))).alias("bad_rows"),
-                )
-                .collect()[0]
+        counts = (
+            batch_df
+            .agg(
+                F.sum(F.when(F.col("error_reason").isNull(), F.lit(1)).otherwise(F.lit(0))).alias("good_rows"),
+                F.sum(F.when(F.col("error_reason").isNotNull(), F.lit(1)).otherwise(F.lit(0))).alias("bad_rows"),
             )
-            good_rows = int(counts["good_rows"] or 0)
-            bad_rows = int(counts["bad_rows"] or 0)
+            .collect()[0]
+        )
+        good_rows = int(counts["good_rows"] or 0)
+        bad_rows = int(counts["bad_rows"] or 0)
 
-            bad_batch = (
-                persisted
-                .filter(col("error_reason").isNotNull())
-                .select(
-                    lit(STREAM_INSTANCE_ID).alias("stream_instance_id"),
-                    lit(int(batch_id)).alias("batch_id"),
-                    col("kafka_topic").alias("topic"),
-                    col("kafka_partition").cast("int").alias("kafka_partition"),
-                    col("kafka_offset").cast("bigint").alias("kafka_offset"),
-                    col("error_reason"),
-                    col("raw_payload"),
-                )
+        bad_batch = (
+            batch_df
+            .filter(col("error_reason").isNotNull())
+            .select(
+                lit(STREAM_INSTANCE_ID).alias("stream_instance_id"),
+                lit(int(batch_id)).alias("batch_id"),
+                col("kafka_topic").alias("topic"),
+                col("kafka_partition").cast("int").alias("kafka_partition"),
+                col("kafka_offset").cast("bigint").alias("kafka_offset"),
+                col("error_reason"),
+                col("raw_payload"),
             )
+        )
 
-            good_batch = (
-                persisted
-                .filter(col("error_reason").isNull())
-                .drop("error_reason", "raw_payload", "kafka_topic")
-                .dropDuplicates(["event_id"])  # intra-batch dedup (cross-batch handled by ON CONFLICT)
-            )
+        good_batch = (
+            batch_df
+            .filter(col("error_reason").isNull())
+            .drop("error_reason", "raw_payload", "kafka_topic")
+        )
 
-            # DLQ (best-effort, idempotent via staging + ON CONFLICT)
-            # Advisory lock (key 2) prevents concurrent batches from colliding on DLQ staging
-            if bad_rows > 0:
-                try:
-                    _staging_cycle(
-                        spark, jdbc_props, bad_batch,
-                        staging_table=DLQ_STAGING_TABLE,
-                        merge_sql=f"""
-                        INSERT INTO {DLQ_TABLE} (stream_instance_id, batch_id, topic, kafka_partition, kafka_offset, error_reason, raw_payload)
-                        SELECT stream_instance_id, batch_id, topic, kafka_partition, kafka_offset, error_reason, raw_payload
-                        FROM {DLQ_STAGING_TABLE}
-                        ON CONFLICT (stream_instance_id, batch_id, kafka_partition, kafka_offset) DO NOTHING;
-                        """,
-                        lock_key=2,
-                    )
-                except Exception as e:
-                    print(f"[spark-stream] DLQ write failed batch_id={batch_id} err={e}", flush=True)
-
-            # Merge good rows into target via staging table
-            # Advisory lock (key 1) prevents concurrent batches from colliding on staging
-            if good_rows > 0:
+        # DLQ (best-effort, idempotent via staging + ON CONFLICT)
+        # Advisory lock (key 2) prevents concurrent batches from colliding on DLQ staging
+        if bad_rows > 0:
+            try:
                 _staging_cycle(
-                    spark, jdbc_props, good_batch,
-                    staging_table=STAGING_TABLE,
+                    spark, jdbc_props, bad_batch,
+                    staging_table=DLQ_STAGING_TABLE,
                     merge_sql=f"""
-                    INSERT INTO {TARGET_TABLE} (event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts, kafka_partition, kafka_offset)
-                    SELECT event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts, kafka_partition, kafka_offset
-                    FROM {STAGING_TABLE}
-                    ON CONFLICT (event_id) DO NOTHING;
+                    INSERT INTO {DLQ_TABLE} (stream_instance_id, batch_id, topic, kafka_partition, kafka_offset, error_reason, raw_payload)
+                    SELECT stream_instance_id, batch_id, topic, kafka_partition, kafka_offset, error_reason, raw_payload
+                    FROM {DLQ_STAGING_TABLE}
+                    ON CONFLICT (stream_instance_id, batch_id, kafka_partition, kafka_offset) DO NOTHING;
                     """,
-                    lock_key=1,
+                    lock_key=2,
                 )
+            except Exception as e:
+                print(f"[spark-stream] DLQ write failed batch_id={batch_id} err={e}", flush=True)
 
-            ms = int((time.time() - t0) * 1000)
-            print(
-                f"[spark-stream] batch_id={batch_id} good_rows={good_rows} bad_rows={bad_rows} ms={ms}",
-                flush=True,
+        # Merge good rows into target via staging table
+        # Advisory lock (key 1) prevents concurrent batches from colliding on staging
+        if good_rows > 0:
+            _staging_cycle(
+                spark, jdbc_props, good_batch,
+                staging_table=STAGING_TABLE,
+                merge_sql=f"""
+                INSERT INTO {TARGET_TABLE} (event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts, kafka_partition, kafka_offset)
+                SELECT event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts, kafka_partition, kafka_offset
+                FROM {STAGING_TABLE}
+                ON CONFLICT (event_id) DO NOTHING;
+                """,
+                lock_key=1,
             )
-        finally:
-            persisted.unpersist()
+
+        ms = int((time.time() - t0) * 1000)
+        print(
+            f"[spark-stream] batch_id={batch_id} good_rows={good_rows} bad_rows={bad_rows} ms={ms}",
+            flush=True,
+        )
 
     return foreach_batch
 
@@ -393,7 +387,7 @@ if __name__ == "__main__":
         df_with_reason.writeStream
         .foreachBatch(foreach_fn)
         .option("checkpointLocation", CHECKPOINT_DIR)
-        .trigger(processingTime="60 seconds")
+        .trigger(processingTime="300 seconds")
         .outputMode("update")
         .start()
     )

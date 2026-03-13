@@ -9,4 +9,4 @@ commodity_dbt:
       pass: "{{ env_var('DBT_DB_PASSWORD') }}"
       dbname: "{{ env_var('POSTGRES_DB') }}"
       schema: analytics
-      threads: 2
+      threads: 4
