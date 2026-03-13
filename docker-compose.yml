@@ -280,7 +280,15 @@ services:
       - -lc
       - |
           chown -R 185:185 /home/spark/.ivy2
-          exec su -s /bin/bash spark -c 'sleep infinity'
+          exec setpriv --reuid=185 --regid=185 --init-groups sleep infinity
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -293,7 +301,7 @@ services:
   # =========================
   spark-stream:
     image: apache/spark:3.5.1
-    user: "0:0"        # root for chown only; spark-submit runs as spark (185)
+    user: "0:0"        # root for chown only; spark-submit drops to spark (185) via setpriv
     init: true
     stop_grace_period: 2m
 
@@ -329,7 +337,7 @@ services:
       - messaging
       - database
 
-    # Start as root only to fix volume ownership, then drop to spark (185)
+    # Start as root only to fix volume ownership, then drop to spark (185) via setpriv
     command:
       - /bin/bash
       - -lc
@@ -337,19 +345,28 @@ services:
           chown -R 185:185 /home/spark/.ivy2 /home/spark/checkpoints
           mkdir -p /home/spark/checkpoints/raw_prices
           chown 185:185 /home/spark/checkpoints/raw_prices
-          exec su -s /bin/bash spark -c '/opt/spark/bin/spark-submit \
+          exec setpriv --reuid=185 --regid=185 --init-groups \
+            /opt/spark/bin/spark-submit \
             --driver-memory 512m \
             --conf spark.driver.maxResultSize=128m \
             --conf spark.sql.session.timeZone=UTC \
             --conf spark.jars.ivy=/home/spark/.ivy2 \
             --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgresql:postgresql:42.7.3 \
-            /opt/spark-app/stream_to_postgres.py'
+            /opt/spark-app/stream_to_postgres.py
     healthcheck:
       test: ["CMD-SHELL", "ps aux | grep -q '[s]park-submit' || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 60s
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -457,6 +474,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
+    cap_drop:
+      - ALL
     deploy:
       resources:
         limits:

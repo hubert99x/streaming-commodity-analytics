@@ -25,7 +25,11 @@ COPY run_dbt_test.sh /ops/run_dbt_test.sh
 COPY scheduler.py    /ops/scheduler.py
 COPY start.sh        /ops/start.sh
 
-RUN chmod 0755 /ops/run_dbt_run.sh /ops/run_dbt_test.sh /ops/start.sh
+RUN chmod 0755 /ops/run_dbt_run.sh /ops/run_dbt_test.sh /ops/start.sh \
+ && mkdir -p /tmp/dbt_target /tmp/dbt_logs /tmp/dbt_packages \
+ && chown -R 1000:1000 /dbt /ops /tmp/dbt_target /tmp/dbt_logs /tmp/dbt_packages
+
+USER 1000
 
 ENTRYPOINT ["/bin/bash", "-lc"]
 CMD ["/ops/start.sh"]

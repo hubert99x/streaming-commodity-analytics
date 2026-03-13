@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from datetime import datetime, timezone
 
 import psycopg2
@@ -16,6 +17,16 @@ PGPASSWORD = os.getenv("POSTGRES_PASSWORD", "")
 
 # Basic auth token for webhook (optional but recommended)
 WEBHOOK_TOKEN = os.getenv("ALERT_WEBHOOK_TOKEN", "")
+WEBHOOK_AUTH_DISABLED = os.getenv("ALERT_WEBHOOK_AUTH_DISABLED", "").lower() == "true"
+
+if not WEBHOOK_TOKEN and not WEBHOOK_AUTH_DISABLED:
+    print(
+        "FATAL: ALERT_WEBHOOK_TOKEN is not set. "
+        "Set it in .env or set ALERT_WEBHOOK_AUTH_DISABLED=true to run without auth.",
+        file=sys.stderr,
+        flush=True,
+    )
+    sys.exit(1)
 
 
 def _utc_now():

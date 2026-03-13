@@ -1,15 +1,28 @@
-# Base image vulnerabilities (dbt-postgres:1.9.0) — not exploitable in our context
+# =============================================================================
+# Trivy CVE ignore list — review quarterly (next review: 2026-06-13)
+# =============================================================================
+
 # jaraco.context: path traversal via tar — we don't extract untrusted tar archives
+# Added: 2026-01-15 | Expires: 2026-06-13
 CVE-2026-23949
+
 # wheel: privilege escalation via malicious .whl — we only install pinned packages from PyPI
+# Added: 2026-01-15 | Expires: 2026-06-13
 CVE-2026-24049
+
 # protobuf: recursion DoS — bundled in Spark base image, not directly used
+# Added: 2026-02-10 | Expires: 2026-06-13
 CVE-2025-4565
 CVE-2026-0994
-# setuptools: RCE/path traversal in package_index — not used at runtime
+
+# setuptools: RCE/path traversal in package_index — not used at runtime (build-time only)
+# Added: 2026-02-10 | Expires: 2026-06-13
 CVE-2024-6345
 CVE-2025-47273
-# urllib3: decompression bomb variants — bundled in base images, our HTTP calls use pinned requests
+
+# urllib3: decompression bomb variants — bundled in base images, our HTTP calls use
+# pinned requests with bounded timeout/size. Monitor upstream for patches.
+# Added: 2026-03-01 | Expires: 2026-06-13
 CVE-2025-66418
 CVE-2025-66471
 CVE-2026-21441
