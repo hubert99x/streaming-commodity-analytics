@@ -41,11 +41,20 @@ fi
 
 echo "[dbt-test] status=$status total=$total pass=$pass warn=$warn error=$error fail=$fail skip=$skip"
 
+# Use parameterized query via psql variables to prevent SQL injection
 PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -d "${POSTGRES_DB}" -U "${POSTGRES_USER}" \
   -v ON_ERROR_STOP=1 \
+  -v v_env="$DQ_ENVIRONMENT" \
+  -v v_status="$status" \
+  -v v_total="$total" \
+  -v v_pass="$pass" \
+  -v v_warn="$warn" \
+  -v v_error="$error" \
+  -v v_fail="$fail" \
+  -v v_skip="$skip" \
   -c "INSERT INTO monitoring.dbt_test_runs
       (environment, status, total, pass, warn, error, fail, skipped)
       VALUES
-      ('${DQ_ENVIRONMENT}', '${status}', ${total}, ${pass}, ${warn}, ${error}, ${fail}, ${skip});"
+      (:'v_env', :'v_status', :v_total, :v_pass, :v_warn, :v_error, :v_fail, :v_skip);"
 
 echo "[dbt-test] $(date -Is) done."

@@ -85,28 +85,39 @@ event_schema = StructType([
 ])
 
 
+def _get_jdbc_driver(spark: SparkSession):
+    """Get a PostgreSQL JDBC driver instance via Spark's classloader."""
+    jvm = spark._sc._jvm
+    tcl = jvm.java.lang.Thread.currentThread().getContextClassLoader()
+    driver_class = jvm.java.lang.Class.forName("org.postgresql.Driver", True, tcl)
+    return driver_class.newInstance()
+
+
+def _get_jdbc_props(spark: SparkSession):
+    """Build JDBC connection properties."""
+    jvm = spark._sc._jvm
+    props = jvm.java.util.Properties()
+    props.setProperty("user", POSTGRES_USER)
+    props.setProperty("password", POSTGRES_PASSWORD)
+    return props
+
+
+def _open_jdbc_conn(spark: SparkSession):
+    """Open a raw JDBC connection via Spark's JVM driver."""
+    driver = _get_jdbc_driver(spark)
+    props = _get_jdbc_props(spark)
+    return driver.connect(PG_URL, props)
+
+
 def _exec_sql_via_jdbc(spark: SparkSession, sql_text: str) -> None:
     """
     Execute SQL on Postgres using JVM JDBC (no extra Python libs required).
     Uses the JVM driver already loaded by Spark, avoiding a psycopg2 dependency.
     """
-    jvm = spark._sc._jvm
-    Properties = jvm.java.util.Properties
-
-    props = Properties()
-    props.setProperty("user", POSTGRES_USER)
-    props.setProperty("password", POSTGRES_PASSWORD)
-
-    # Instantiate the PostgreSQL driver directly via Spark's classloader
-    # (DriverManager can't find it because --packages JARs are on a child classloader)
-    tcl = jvm.java.lang.Thread.currentThread().getContextClassLoader()
-    driver_class = jvm.java.lang.Class.forName("org.postgresql.Driver", True, tcl)
-    driver = driver_class.newInstance()
-
     conn = None
     stmt = None
     try:
-        conn = driver.connect(PG_URL, props)
+        conn = _open_jdbc_conn(spark)
         conn.setAutoCommit(False)
         stmt = conn.createStatement()
         stmt.execute(sql_text)
@@ -152,6 +163,35 @@ def _ensure_staging_tables(spark: SparkSession):
     );
     """)
     # DLQ unique constraint (uq_dlq_event) must be created by DB admin — see ops/sql/create_indexes.sql
+
+
+def _staging_cycle(spark, jdbc_props, batch_df, *, staging_table, merge_sql, lock_key):
+    """
+    Atomic staging cycle: TRUNCATE → JDBC write → MERGE, guarded by a
+    PostgreSQL session-level advisory lock to prevent races if two Spark
+    instances overlap during container restarts.
+    """
+    lock_conn = _open_jdbc_conn(spark)
+    lock_stmt = lock_conn.createStatement()
+    try:
+        lock_stmt.execute(f"SELECT pg_advisory_lock({lock_key})")
+
+        _exec_sql_via_jdbc(spark, f"TRUNCATE {staging_table};")
+
+        (
+            batch_df.write
+            .mode("append")
+            .jdbc(url=PG_URL, table=staging_table, properties=jdbc_props)
+        )
+
+        _exec_sql_via_jdbc(spark, merge_sql)
+    finally:
+        try:
+            lock_stmt.execute(f"SELECT pg_advisory_unlock({lock_key})")
+        except Exception:
+            pass
+        lock_stmt.close()
+        lock_conn.close()
 
 
 def make_foreach_batch(spark: SparkSession):
@@ -218,51 +258,37 @@ def make_foreach_batch(spark: SparkSession):
             )
 
             # DLQ (best-effort, idempotent via staging + ON CONFLICT)
+            # Advisory lock (key 2) prevents concurrent batches from colliding on DLQ staging
             if bad_rows > 0:
                 try:
-                    _exec_sql_via_jdbc(spark, f"TRUNCATE {DLQ_STAGING_TABLE};")
-                    (
-                        bad_batch.write
-                        .mode("append")
-                        .jdbc(url=PG_URL, table=DLQ_STAGING_TABLE, properties=jdbc_props)
+                    _staging_cycle(
+                        spark, jdbc_props, bad_batch,
+                        staging_table=DLQ_STAGING_TABLE,
+                        merge_sql=f"""
+                        INSERT INTO {DLQ_TABLE} (stream_instance_id, batch_id, topic, kafka_partition, kafka_offset, error_reason, raw_payload)
+                        SELECT stream_instance_id, batch_id, topic, kafka_partition, kafka_offset, error_reason, raw_payload
+                        FROM {DLQ_STAGING_TABLE}
+                        ON CONFLICT (stream_instance_id, batch_id, kafka_partition, kafka_offset) DO NOTHING;
+                        """,
+                        lock_key=2,
                     )
-                    _exec_sql_via_jdbc(spark, f"""
-                    INSERT INTO {DLQ_TABLE} (stream_instance_id, batch_id, topic, kafka_partition, kafka_offset, error_reason, raw_payload)
-                    SELECT stream_instance_id, batch_id, topic, kafka_partition, kafka_offset, error_reason, raw_payload
-                    FROM {DLQ_STAGING_TABLE}
-                    ON CONFLICT (stream_instance_id, batch_id, kafka_partition, kafka_offset) DO NOTHING;
-                    """)
                 except Exception as e:
                     print(f"[spark-stream] DLQ write failed batch_id={batch_id} err={e}", flush=True)
 
-            # TRUNCATE + append to persistent staging table, then merge into target
+            # Merge good rows into target via staging table
+            # Advisory lock (key 1) prevents concurrent batches from colliding on staging
             if good_rows > 0:
-                _exec_sql_via_jdbc(spark, f"TRUNCATE {STAGING_TABLE};")
-
-                (
-                    good_batch.write
-                    .mode("append")
-                    .jdbc(url=PG_URL, table=STAGING_TABLE, properties=jdbc_props)
+                _staging_cycle(
+                    spark, jdbc_props, good_batch,
+                    staging_table=STAGING_TABLE,
+                    merge_sql=f"""
+                    INSERT INTO {TARGET_TABLE} (event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts, kafka_partition, kafka_offset)
+                    SELECT event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts, kafka_partition, kafka_offset
+                    FROM {STAGING_TABLE}
+                    ON CONFLICT (event_id) DO NOTHING;
+                    """,
+                    lock_key=1,
                 )
-
-                insert_sql = f"""
-                INSERT INTO {TARGET_TABLE} (event_id, commodity, symbol, price, currency, event_ts, source, ingest_ts, kafka_partition, kafka_offset)
-                SELECT
-                  event_id,
-                  commodity,
-                  symbol,
-                  price,
-                  currency,
-                  event_ts,
-                  source,
-                  ingest_ts,
-                  kafka_partition,
-                  kafka_offset
-                FROM {STAGING_TABLE}
-                ON CONFLICT (event_id) DO NOTHING;
-                """
-
-                _exec_sql_via_jdbc(spark, insert_sql)
 
             ms = int((time.time() - t0) * 1000)
             print(

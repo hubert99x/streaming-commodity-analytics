@@ -1,5 +1,8 @@
 {{
   config(
+    materialized='incremental',
+    unique_key=['commodity', 'symbol', 'event_ts'],
+    on_schema_change='sync_all_columns',
     post_hook="CREATE INDEX IF NOT EXISTS idx_{{ this.name }}_event_ts ON {{ this }} (event_ts DESC)"
   )
 }}
@@ -21,6 +24,10 @@ with base as (
             order by event_ts
         ) as prev_event_ts
     from {{ ref('stg_raw_prices') }}
+    {% if is_incremental() %}
+    -- Lookback 2 hours so LAG() can see the row before the incremental boundary
+    where event_ts >= (select max(event_ts) - interval '2 hours' from {{ this }})
+    {% endif %}
 
 ),
 

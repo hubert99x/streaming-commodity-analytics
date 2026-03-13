@@ -10,7 +10,6 @@ RUN apt-get update \
  && apt-get dist-upgrade -y \
  && apt-get install -y --no-install-recommends \
       bash \
-      cron \
       jq \
       postgresql-client \
  && apt-get autoremove -y \
@@ -23,6 +22,7 @@ WORKDIR /dbt
 
 COPY run_dbt_run.sh  /ops/run_dbt_run.sh
 COPY run_dbt_test.sh /ops/run_dbt_test.sh
+COPY scheduler.py    /ops/scheduler.py
 COPY start.sh        /ops/start.sh
 
 RUN chmod 0755 /ops/run_dbt_run.sh /ops/run_dbt_test.sh /ops/start.sh

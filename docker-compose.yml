@@ -15,6 +15,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./backups:/backups
       - ./ops/sql:/ops/sql:ro
+      - ./ops/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     networks:
       - database
     healthcheck:
@@ -82,6 +83,8 @@ services:
       KAFKA_NUM_PARTITIONS: 3
 
       KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     networks:
       - messaging
     healthcheck:
@@ -422,6 +425,12 @@ services:
       - ./ops/sql:/ops/sql:ro
     networks:
       - database
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/dbt_scheduler_alive && find /tmp/dbt_scheduler_alive -mmin -10 | grep -q ."]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -557,6 +566,7 @@ networks:
 
 volumes:
   pgdata:
+  kafka_data:
   grafana_data:
   pgadmin_data:
   spark_ivy_cache:

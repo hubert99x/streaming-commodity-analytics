@@ -51,33 +51,45 @@ FX_WEEKEND_GATED_SYMBOLS = {"EUR/USD", "XAU/USD"}
 
 
 # ==========================================================
-# API Metrics Logging (Postgres)
+# API Metrics Logging (Postgres) — lazy singleton connection
 # ==========================================================
-def log_api_call(symbols: str, http_status, latency_ms: int, ok: bool, error_type=None, error_msg=None):
-    """
-    Insert one API call metric row into monitoring.api_calls.
-    This must never break the producer loop.
-    """
-    try:
-        conn = psycopg2.connect(
+_pg_conn = None
+
+
+def _get_pg_conn():
+    """Return a reusable Postgres connection, reconnecting if stale."""
+    global _pg_conn
+    if _pg_conn is None or _pg_conn.closed:
+        _pg_conn = psycopg2.connect(
             host=POSTGRES_HOST,
             port=POSTGRES_PORT,
             dbname=POSTGRES_DB,
             user=POSTGRES_USER,
             password=POSTGRES_PASSWORD,
         )
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO monitoring.api_calls
-                    (ts_utc, symbols, http_status, latency_ms, ok, error_type, error_msg)
-                    VALUES (now(), %s, %s, %s, %s, %s, %s)
-                    """,
-                    (symbols, http_status, latency_ms, ok, error_type, error_msg),
-                )
-        conn.close()
+        _pg_conn.autocommit = True
+    return _pg_conn
+
+
+def log_api_call(symbols: str, http_status, latency_ms: int, ok: bool, error_type=None, error_msg=None):
+    """
+    Insert one API call metric row into monitoring.api_calls.
+    This must never break the producer loop.
+    """
+    try:
+        conn = _get_pg_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO monitoring.api_calls
+                (ts_utc, symbols, http_status, latency_ms, ok, error_type, error_msg)
+                VALUES (now(), %s, %s, %s, %s, %s, %s)
+                """,
+                (symbols, http_status, latency_ms, ok, error_type, error_msg),
+            )
     except Exception as e:
+        global _pg_conn
+        _pg_conn = None
         print(f"ERROR logging API metrics: {e}", flush=True)
 
 
