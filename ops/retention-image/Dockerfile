@@ -15,6 +15,10 @@ RUN git clone https://github.com/tianon/gosu.git . \
 # Stage 2: final retention image
 FROM postgres:16.6
 
+RUN apt-get update \
+ && apt-get upgrade -y \
+ && rm -rf /var/lib/apt/lists/*
+
 # Replace gosu binary with a rebuild compiled on a patched Go version
 COPY --from=gosu-builder /out/gosu /usr/local/bin/gosu
 
