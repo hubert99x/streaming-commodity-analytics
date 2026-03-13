@@ -73,7 +73,9 @@ jobs:
               currency TEXT,
               event_ts TIMESTAMP,
               source TEXT,
-              ingest_ts TIMESTAMP
+              ingest_ts TIMESTAMP,
+              kafka_partition INTEGER,
+              kafka_offset BIGINT
             );
           "
 
