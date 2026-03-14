@@ -53,6 +53,7 @@ def _run_dbt_build():
         print(f"[dbt-scheduler] {_now_iso()} SKIP dbt build — previous run still active", flush=True)
         return _last_build_ok
 
+    t0 = time.monotonic()
     try:
         print(f"[dbt-scheduler] {_now_iso()} starting dbt build...", flush=True)
         result = subprocess.run(
@@ -61,21 +62,24 @@ def _run_dbt_build():
             capture_output=False,
             timeout=300,
         )
+        duration_ms = int((time.monotonic() - t0) * 1000)
         _last_build_ok = result.returncode == 0
         if _last_build_ok:
-            print(f"[dbt-scheduler] {_now_iso()} dbt build OK", flush=True)
+            print(f"[dbt-scheduler] {_now_iso()} dbt build OK duration_ms={duration_ms}", flush=True)
         else:
             print(
-                f"[dbt-scheduler] {_now_iso()} dbt build FAILED (exit={result.returncode})",
+                f"[dbt-scheduler] {_now_iso()} dbt build FAILED (exit={result.returncode}) duration_ms={duration_ms}",
                 flush=True,
             )
         return _last_build_ok
     except subprocess.TimeoutExpired:
-        print(f"[dbt-scheduler] {_now_iso()} dbt build TIMEOUT (300s)", flush=True)
+        duration_ms = int((time.monotonic() - t0) * 1000)
+        print(f"[dbt-scheduler] {_now_iso()} dbt build TIMEOUT (300s) duration_ms={duration_ms}", flush=True)
         _last_build_ok = False
         return False
     except Exception as e:
-        print(f"[dbt-scheduler] {_now_iso()} dbt build ERROR: {e}", flush=True)
+        duration_ms = int((time.monotonic() - t0) * 1000)
+        print(f"[dbt-scheduler] {_now_iso()} dbt build ERROR: {e} duration_ms={duration_ms}", flush=True)
         _last_build_ok = False
         return False
     finally:

@@ -134,6 +134,28 @@ def _exec_sql_via_jdbc(spark: SparkSession, sql_text: str) -> None:
             conn.close()
 
 
+def _exec_merge_returning_count(spark: SparkSession, sql_text: str) -> int:
+    """Execute an INSERT ... ON CONFLICT and return the number of actually inserted rows."""
+    conn = None
+    stmt = None
+    try:
+        conn = _open_jdbc_conn(spark)
+        conn.setAutoCommit(False)
+        stmt = conn.createStatement()
+        count = stmt.executeUpdate(sql_text)
+        conn.commit()
+        return count
+    except Exception:
+        if conn is not None:
+            conn.rollback()
+        raise
+    finally:
+        if stmt is not None:
+            stmt.close()
+        if conn is not None:
+            conn.close()
+
+
 def _ensure_staging_tables(spark: SparkSession):
     """Create persistent staging tables and DLQ unique constraint once (idempotent)."""
     _exec_sql_via_jdbc(spark, f"""
@@ -171,9 +193,12 @@ def _staging_cycle(spark, jdbc_props, batch_df, *, staging_table, merge_sql, loc
     Atomic staging cycle: TRUNCATE → JDBC write → MERGE, guarded by a
     PostgreSQL session-level advisory lock to prevent races if two Spark
     instances overlap during container restarts.
+
+    Returns the number of rows actually inserted by the merge (excludes ON CONFLICT skips).
     """
     lock_conn = _open_jdbc_conn(spark)
     lock_stmt = lock_conn.createStatement()
+    inserted = 0
     try:
         lock_stmt.execute(f"SELECT pg_advisory_lock({lock_key})")
 
@@ -185,14 +210,23 @@ def _staging_cycle(spark, jdbc_props, batch_df, *, staging_table, merge_sql, loc
             .jdbc(url=PG_URL, table=staging_table, properties=jdbc_props)
         )
 
-        _exec_sql_via_jdbc(spark, merge_sql)
+        inserted = _exec_merge_returning_count(spark, merge_sql)
     finally:
-        try:
-            lock_stmt.execute(f"SELECT pg_advisory_unlock({lock_key})")
-        except Exception:
-            pass
+        unlock_ok = False
+        for attempt in range(3):
+            try:
+                lock_stmt.execute(f"SELECT pg_advisory_unlock({lock_key})")
+                unlock_ok = True
+                break
+            except Exception as e:
+                if attempt == 2:
+                    print(
+                        f"[spark-stream] WARNING: pg_advisory_unlock({lock_key}) failed after 3 attempts: {e}",
+                        flush=True,
+                    )
         lock_stmt.close()
         lock_conn.close()
+    return inserted
 
 
 def make_foreach_batch(spark: SparkSession):
@@ -255,6 +289,7 @@ def make_foreach_batch(spark: SparkSession):
 
         # DLQ (best-effort, idempotent via staging + ON CONFLICT)
         # Advisory lock (key 2) prevents concurrent batches from colliding on DLQ staging
+        dlq_write_failed = 0
         if bad_rows > 0:
             try:
                 _staging_cycle(
@@ -269,12 +304,18 @@ def make_foreach_batch(spark: SparkSession):
                     lock_key=2,
                 )
             except Exception as e:
-                print(f"[spark-stream] DLQ write failed batch_id={batch_id} err={e}", flush=True)
+                dlq_write_failed = bad_rows
+                print(
+                    f"[spark-stream] DLQ_WRITE_FAILURE batch_id={batch_id} lost_records={bad_rows} err={e}",
+                    flush=True,
+                )
 
         # Merge good rows into target via staging table
         # Advisory lock (key 1) prevents concurrent batches from colliding on staging
+        inserted = 0
+        conflict_skipped = 0
         if good_rows > 0:
-            _staging_cycle(
+            inserted = _staging_cycle(
                 spark, jdbc_props, good_batch,
                 staging_table=STAGING_TABLE,
                 merge_sql=f"""
@@ -285,10 +326,13 @@ def make_foreach_batch(spark: SparkSession):
                 """,
                 lock_key=1,
             )
+            conflict_skipped = good_rows - inserted
 
         ms = int((time.time() - t0) * 1000)
         print(
-            f"[spark-stream] batch_id={batch_id} good_rows={good_rows} bad_rows={bad_rows} ms={ms}",
+            f"[spark-stream] batch_id={batch_id} good_rows={good_rows} inserted={inserted} "
+            f"conflict_skipped={conflict_skipped} bad_rows={bad_rows} "
+            f"dlq_write_failed={dlq_write_failed} ms={ms}",
             flush=True,
         )
 

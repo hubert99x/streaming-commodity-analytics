@@ -1,6 +1,6 @@
 # Technical Documentation — Commodity Price Streaming System
 
-> Critical analysis. Last updated: 2026-03-13 (post-optimization revision).
+> Critical analysis. Last updated: 2026-03-14 (post-optimization revision).
 
 ---
 
@@ -138,7 +138,7 @@ All external ports bind to `127.0.0.1` (Grafana:3000, pgAdmin:5050, Kafka UI:808
                     │
                     ▼
  ┌─────────────────────────────────────────────┐
- │        GRAFANA (3 dashboards, 7 alerts)      │
+ │        GRAFANA (3 dashboards, 8 alerts)      │
  │  market_overview, market_analysis,           │
  │  pipeline_&_data_quality                     │
  │                                              │
@@ -157,7 +157,7 @@ The pipeline achieves **effective exactly-once** semantics through layered idemp
 | Spark → Postgres | `ON CONFLICT (event_id) DO NOTHING` | At-most-once per event_id (duplicates silently dropped) |
 | **Combined** | | **Effectively exactly-once at Postgres level** |
 
-**Weakness:** There are no metrics for ON CONFLICT discards. If Spark replays a batch after crash recovery, the duplicate rows are silently dropped. There is no way to distinguish "healthy idempotent skip" from "data quality problem causing ID collisions." A counter for conflict-skipped rows would improve observability.
+**Observability:** The Spark streaming job tracks ON CONFLICT discards via `executeUpdate()` row counts. Each batch logs `conflict_skipped=N`, making it possible to distinguish healthy idempotent replays from data quality problems causing unexpected ID collisions.
 
 ---
 
@@ -177,7 +177,6 @@ The pipeline achieves **effective exactly-once** semantics through layered idemp
 - **Graceful shutdown:** SIGINT/SIGTERM handlers flush the Kafka producer buffer before exit.
 
 **Weaknesses:**
-- **Backoff multiplier never resets on success.** After a single transient 5xx error, the multiplier increments. Even if the next request succeeds, subsequent failures start from the elevated multiplier. Only a 429 rate-limit resets it. This can cause prolonged polling gaps after brief network hiccups.
 - **No circuit breaker.** Exponential backoff can reach 10+ minutes. There is no alert mechanism if the producer enters prolonged backoff — the system just goes quiet.
 - **Global mutable `_pg_conn`.** Safe in the current single-threaded design, but will silently corrupt if the producer is ever made concurrent.
 
@@ -197,12 +196,12 @@ The pipeline achieves **effective exactly-once** semantics through layered idemp
 - **DLQ:** Bad records → `ingest.dlq_staging` → merged into `monitoring.dead_letter_events` with its own advisory lock (key 2) and unique constraint to prevent duplicates on batch replay.
 - **JDBC timeouts:** `connectTimeout=10s`, `socketTimeout=30s` prevent indefinite hangs on Postgres connection issues.
 - **Health check:** Docker liveness probe (`ps aux | grep spark-submit`) detects process crashes.
-- **Deduplication:** Handled entirely by PostgreSQL `ON CONFLICT (event_id) DO NOTHING` — no in-batch `dropDuplicates` needed.
+- **Deduplication:** Handled entirely by PostgreSQL `ON CONFLICT (event_id) DO NOTHING` — no in-batch `dropDuplicates` needed. **Conflict-skipped rows are counted and logged** (`conflict_skipped=N`) for observability, distinguishing healthy idempotent replays from data quality issues.
+- **DLQ write failure tracking:** If DLQ staging fails, the lost record count is logged with a structured `DLQ_WRITE_FAILURE` tag and `lost_records=N` for grep-based alerting.
+- **Advisory lock retry:** `pg_advisory_unlock` retries up to 3 times before giving up, preventing deadlocks from transient connection issues.
 
 **Weaknesses:**
-- **DLQ write failures are silent.** If the DLQ staging insert fails, the error is logged to stdout but the bad records are permanently lost. No alert fires; no retry occurs.
 - **Price bounds are hardcoded.** Changing thresholds (e.g., if gold exceeds $15,000) requires a code change and container rebuild. No external configuration mechanism exists.
-- **Advisory lock unlock failures are swallowed.** If `pg_advisory_unlock` raises an exception (line 191), it is caught and logged but the lock remains held until the JDBC connection closes. If the connection persists, subsequent batches will deadlock waiting for the lock.
 - **Concurrent instance race.** If two Spark instances start during a restart (old shutting down, new starting up), both read the same checkpoint and process overlapping offset ranges. Advisory locks protect the staging merge but not the consumption itself. Idempotency at the Postgres layer saves correctness, but batch metrics become misleading (double-counted).
 - **`failOnDataLoss=false`** means Kafka offset gaps (e.g., from topic retention) are silently ignored. No alert fires when Spark skips over lost offsets.
 
@@ -220,7 +219,8 @@ The pipeline achieves **effective exactly-once** semantics through layered idemp
 
 **Weaknesses:**
 - **If dbt build consistently exceeds 6 minutes, runs are silently skipped** (lock contention). There is no alert for "dbt build took too long" — only the file-marker health check would eventually fail after 10 minutes of no heartbeat.
-- **No build duration tracking.** There is no metric for how long each dbt build takes. Progressive slowdown (from table growth) would go unnoticed until it exceeds the 5-minute timeout.
+
+**Note:** Build duration is now tracked — each run logs `duration_ms=N` to stdout for operational visibility and trend analysis.
 
 ### 3.4 Alert Receiver (`ops/alert-receiver/app.py`)
 
@@ -248,9 +248,10 @@ The pipeline achieves **effective exactly-once** semantics through layered idemp
 
 **Weaknesses:**
 - **Retention is not automated.** Unlike backup-cron, the retention service must be manually invoked. Without regular cleanup, `raw_prices` grows unbounded (backups still rotate, but the live table doesn't shrink).
-- **Monitoring tables have no retention.** `api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log` are never purged and grow indefinitely.
 - **Backups are unencrypted.** Stored as plain `pg_dump` files on the host filesystem. No encryption at rest.
 - **No restore testing.** No automated verification that backups can be successfully restored.
+
+**Note:** All monitoring tables (`api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log`) now have 90-day retention policies alongside the existing `raw_prices`, `dead_letter_events`, and `alert_events` cleanup.
 
 ---
 
@@ -393,7 +394,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 
 ## 6. Monitoring & Alerting
 
-### Alert Rules (7 total, 30-second evaluation)
+### Alert Rules (8 total, 30-second evaluation)
 
 | Alert | Condition | Severity | Fires After |
 |-------|-----------|----------|-------------|
@@ -404,6 +405,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 | DLQ Events (15m) | DLQ count > 0 in 15m window | WARNING | 2 min |
 | Kafka Lag >50 | `total_lag > 50` | WARNING | 2 min |
 | Kafka Lag >500 | `total_lag > 500` | CRITICAL | 2 min |
+| Kafka Partition Lag >30 | `max_partition_lag > 30` | WARNING | 2 min |
 
 **Routing:** Critical alerts → `postgres-webhook` contact point → alert-receiver → `monitoring.alert_events`.
 
@@ -418,9 +420,9 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 ### Monitoring Gaps
 
 1. ~~**No dbt health alert.**~~ **Partially addressed.** dbt source freshness SLA (warn 10m, error 20m) detects stale `raw_prices` input. However, there is still no alert for dbt build *failures* — if dbt crashes but `raw_prices` keeps flowing, no alert fires.
-2. **No dbt build duration tracking.** Progressive slowdown from table growth would go unnoticed.
-3. **No per-partition Kafka lag.** Only total lag is alerted on. A single stuck partition could be masked by healthy partitions.
-4. **No Spark streaming metrics.** Microbatch duration, watermark lag, and task counts are not exposed.
+2. ~~**No dbt build duration tracking.**~~ **Addressed.** Build duration (`duration_ms`) is now logged to stdout for each run (OK, FAILED, TIMEOUT).
+3. ~~**No per-partition Kafka lag.**~~ **Addressed.** Alert rule `kafka_partition_lag_warn_gt_30` fires when `max_partition_lag > 30` for 2 minutes, detecting stuck partitions masked by healthy total lag.
+4. **No Spark streaming metrics.** Microbatch duration, watermark lag, and task counts are not exposed. *(Partially mitigated: batch log now includes `inserted`, `conflict_skipped`, `dlq_write_failed`, `ms` per batch.)*
 5. **No Postgres table size monitoring.** No alert for `raw_prices` approaching disk capacity.
 6. **No alert for alert-receiver downtime.** If the webhook receiver crashes, all alerts are silently lost. The health check will restart it, but there's a gap.
 7. **No cross-commodity consistency check.** If BTC has 100 events/hour but XAU has 0 (broken API for one symbol), no alert fires — only the BTC-specific heartbeat exists.
@@ -585,11 +587,10 @@ All GitHub Actions are SHA-pinned to prevent supply chain attacks. The `.trivyig
 
 ### Severity: High
 
-| # | Issue | Impact | Recommendation |
-|---|-------|--------|----------------|
-| 4 | **DLQ write failures are silent** | Permanent data loss for malformed records with no alert | Add DLQ write failure counter; alert on non-zero |
-| 5 | **Monitoring tables grow unbounded** | Disk exhaustion over time | Add retention policy for all monitoring tables (30-90 day TTL) |
-| 6 | **Backoff multiplier doesn't reset on success** | Prolonged polling gaps after transient errors | Reset multiplier to 1 after any successful API response |
+*All previously listed HIGH issues have been addressed:*
+- ~~DLQ write failures are silent~~ → DLQ write failures now logged with `DLQ_WRITE_FAILURE` tag and `lost_records=N` count.
+- ~~Monitoring tables grow unbounded~~ → All monitoring tables now have 90-day retention in `retention.sql`.
+- ~~Backoff multiplier doesn't reset on success~~ → Multiplier resets to 1 after any successful API response (`producer.py` line 337).
 
 ### Severity: Medium
 
@@ -597,9 +598,9 @@ All GitHub Actions are SHA-pinned to prevent supply chain attacks. The `.trivyig
 |---|-------|--------|----------------|
 | 7 | **Single-node Kafka (RF=1)** | Any Kafka failure = full pipeline outage + potential data loss | Document as known limitation; for production, deploy 3-node cluster |
 | 8 | **Retention service is manual** | raw_prices grows unbounded unless operator remembers to run retention | Automate via cron or integrate into backup-cron schedule |
-| 9 | **No per-partition Kafka lag alert** | Single stuck partition masked by total lag metric | Add `max_partition_lag` threshold alert |
+| 9 | ~~No per-partition Kafka lag alert~~ | ~~Single stuck partition masked by total lag metric~~ | **Fixed:** Alert `kafka_partition_lag_warn_gt_30` added |
 | 10 | **Price bounds and event thresholds are hardcoded** | Changing market conditions require code changes + rebuilds | Externalize to config file or dbt vars |
-| 11 | **Advisory lock unlock failure silently swallowed** | Potential batch-level deadlock until connection close | Add retry logic and explicit logging |
+| 11 | ~~Advisory lock unlock failure silently swallowed~~ | ~~Potential batch-level deadlock until connection close~~ | **Fixed:** 3-attempt retry with explicit warning logging |
 
 ### Severity: Low
 
@@ -614,11 +615,11 @@ All GitHub Actions are SHA-pinned to prevent supply chain attacks. The `.trivyig
 
 The system demonstrates strong architectural foundations: idempotent data flow, role-based access control, checkpoint-based exactly-once semantics, commodity-aware analytics, and comprehensive alert coverage. The design choices are well-reasoned for the stated use case (3 instruments, 6-minute intervals, single-machine deployment).
 
-The primary weaknesses cluster around **operational maturity** (no TLS, default credentials, unbounded monitoring table growth) and **test coverage** (no integration tests, no CI composition verification). These are consistent with a thesis/prototype system and would need to be addressed before any production deployment.
+The primary weaknesses cluster around **operational maturity** (no TLS, default credentials) and **test coverage** (no integration tests, no CI composition verification). These are consistent with a thesis/prototype system and would need to be addressed before any production deployment.
 
-Recent improvements have addressed several previously critical gaps: Spark health checks, dbt source freshness monitoring, non-root container execution across all services, mandatory webhook authentication, pre-publish price validation, JDBC timeouts, CI supply chain security (SHA-pinned actions), and expanded dbt CI seed data with two-pass incremental testing.
+Recent improvements have addressed several previously critical gaps: Spark health checks, dbt source freshness monitoring, non-root container execution across all services, mandatory webhook authentication, pre-publish price validation, JDBC timeouts, CI supply chain security (SHA-pinned actions), expanded dbt CI seed data with two-pass incremental testing, monitoring table retention (90-day TTL for all tables), DLQ write failure tracking, ON CONFLICT discard counting, advisory lock unlock retry, dbt build duration logging, and per-partition Kafka lag alerting.
 
 For the thesis context, the most impactful remaining improvements would be:
 1. Adding an integration test that exercises the full pipeline end-to-end
 2. Automating the retention service (preventing the most likely operational failure)
-3. Adding DLQ write failure alerting (closing the last silent data loss path)
+3. Adding TLS for inter-service communication (production readiness)

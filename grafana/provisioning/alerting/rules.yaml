@@ -376,3 +376,57 @@ groups:
                   reducer:
                     type: last
                   type: query
+
+      # ======================================================
+      # WARNING: Single partition Kafka lag > 30
+      # ======================================================
+      - uid: kafka_partition_lag_warn_gt_30
+        title: "[WARN] Kafka partition lag > 30"
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        annotations:
+          summary: "A single Kafka partition has lag above 30"
+          description: "Per-partition lag: max_partition_lag > 30 for 2 minutes. A stuck partition may be masked by healthy total lag."
+        labels:
+          severity: warning
+          component: kafka
+        data:
+          - refId: A
+            datasourceUid: postgres
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              format: table
+              intervalMs: 1000
+              maxDataPoints: 1
+              rawSql: |
+                SELECT COALESCE(max_partition_lag, 0)::bigint AS v
+                FROM monitoring.kafka_lag_latest
+                WHERE group_id = 'spark_stream_raw_prices'
+                  AND topic = 'commodity_prices';
+
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              settings: {}
+
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [30]
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+                  type: query
