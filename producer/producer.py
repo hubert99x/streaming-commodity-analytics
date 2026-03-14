@@ -1,3 +1,16 @@
+"""
+Commodity price producer: fetches prices from Twelve Data REST API
+and publishes them to a Kafka topic as JSON events.
+
+Key features:
+- Polls 3 instruments (BTC/USD, XAU/USD, EUR/USD) every 6 minutes
+- FX weekend gating: skips XAU and EUR from Fri 22:00 to Sun 22:00 UTC
+- Pre-publish price bounds validation (defense-in-depth with Spark)
+- Deterministic event IDs (UUID5) to prevent semantic duplicates
+- Exponential backoff with rate-limit handling (HTTP 429)
+- Logs API call metrics to PostgreSQL for Grafana monitoring
+"""
+
 import json
 import os
 import signal
@@ -16,6 +29,7 @@ from confluent_kafka.admin import AdminClient, NewTopic
 # ==========================================================
 # Config (env-first, safe defaults)
 # ==========================================================
+# Support both env var names for flexibility (docker-compose vs standalone)
 KAFKA_BOOTSTRAP = (
     os.getenv("KAFKA_BOOTSTRAP_SERVERS")
     or os.getenv("KAFKA_BOOTSTRAP")
@@ -30,6 +44,7 @@ SOURCE = os.getenv("SOURCE", "twelvedata_rest")
 INTERVAL_SEC = int(os.getenv("INTERVAL_SEC", "360"))
 HTTP_TIMEOUT_SEC = float(os.getenv("HTTP_TIMEOUT_SEC", "10"))
 BACKOFF_MIN_SEC = int(os.getenv("BACKOFF_MIN_SEC", "15"))
+# Max backoff caps at 10x the polling interval (default 3600s = 1 hour)
 BACKOFF_MAX_SEC = int(os.getenv("BACKOFF_MAX_SEC", str(max(60, INTERVAL_SEC * 10))))
 
 TD_BASE = os.getenv("TD_BASE", "https://api.twelvedata.com")
@@ -105,6 +120,7 @@ def log_api_call(symbols: str, http_status, latency_ms: int, ok: bool, error_typ
 # Helpers
 # ==========================================================
 def utc_iso() -> str:
+    """Return current UTC time as compact ISO-8601 string (e.g. '2026-03-14T12:00:00Z')."""
     return (
         datetime.now(timezone.utc)
         .replace(microsecond=0)
@@ -114,10 +130,12 @@ def utc_iso() -> str:
 
 
 def clamp(n: int, lo: int, hi: int) -> int:
+    """Constrain n to the range [lo, hi]."""
     return max(lo, min(hi, n))
 
 
 def delivery_report(err, msg):
+    """Kafka produce callback — logs delivery failures."""
     if err is not None:
         print(f"DELIVERY ERROR: {err}", flush=True)
 
@@ -176,6 +194,7 @@ def active_symbols_for_fetch(now_utc: datetime) -> List[str]:
 
 
 def td_prices(symbols: List[str]) -> Dict[str, float]:
+    """Fetch current prices from Twelve Data API. Returns {symbol: price} dict."""
     if not symbols:
         return {}
 
@@ -255,6 +274,7 @@ def _handle_stop(signum, frame):
 
 
 def _ensure_topic(topic: str, num_partitions: int) -> None:
+    """Create Kafka topic if it doesn't exist; warn if partition count mismatches."""
     admin = AdminClient({"bootstrap.servers": KAFKA_BOOTSTRAP})
     existing = admin.list_topics(timeout=10).topics
     if topic not in existing:
@@ -268,6 +288,7 @@ def _ensure_topic(topic: str, num_partitions: int) -> None:
 
 
 def main():
+    """Main producer loop: fetch prices → validate → publish to Kafka, with exponential backoff on errors."""
     global _running
 
     if not TD_API_KEY:
@@ -287,6 +308,10 @@ def main():
     # Ensure topic exists with correct partition count
     _ensure_topic(TOPIC, num_partitions=3)
 
+    # Kafka producer with exactly-once semantics:
+    # - enable.idempotence: prevents duplicate messages on network retries
+    # - acks=all: waits for all replicas to acknowledge (strongest durability)
+    # - linger.ms=0: send immediately (low-volume, latency-sensitive)
     producer = Producer(
         {
             "bootstrap.servers": KAFKA_BOOTSTRAP,
@@ -298,6 +323,8 @@ def main():
         }
     )
 
+    # Exponential backoff state: multiplier doubles on consecutive failures,
+    # resets to 1 on success. backoff_sec is the pause before next attempt.
     backoff_sec = 0
     backoff_multiplier = 1
 
@@ -428,6 +455,7 @@ def main():
                 print(f"SENT {TOPIC}: {event}", flush=True)
 
             except BufferError:
+                # Internal queue full — drain callbacks and retry once
                 producer.poll(1)
                 try:
                     producer.produce(
@@ -452,11 +480,13 @@ def main():
 
         print(f"CYCLE DONE: sent={sent} fetched={len(symbols_list)} now_utc={now_utc.isoformat()}", flush=True)
 
+        # Sleep in 1-second ticks to allow responsive shutdown on SIGTERM/SIGINT
         slept = 0
         while _running and slept < INTERVAL_SEC:
             time.sleep(1)
             slept += 1
 
+    # Flush remaining messages before exit to avoid data loss
     try:
         producer.flush(10)
     except Exception:

@@ -1,5 +1,9 @@
--- Fail if any instrument jumps "too much" between consecutive observed buckets
--- This is a data-quality guardrail (likely bad tick / parsing / API glitch), not a trading rule.
+-- Data quality test: fail if any instrument's price jumps beyond sanity thresholds
+-- between consecutive minute buckets.
+--
+-- Thresholds are intentionally wide (EUR 5%, XAU 10%, BTC 30%) — these catch
+-- clearly erroneous data (API glitches, parsing bugs), not normal volatility.
+-- If this test fails, check the DLQ and raw_prices for bad ticks.
 
 with m as (
   select

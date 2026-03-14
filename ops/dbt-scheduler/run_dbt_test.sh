@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Run dbt tests independently and log results to monitoring.dbt_test_runs.
+# Parses run_results.json to extract pass/warn/error/fail/skip counts,
+# determines aggregate status, and inserts a summary row into Postgres.
+# This enables the Grafana "dbt Test Runs" panel to show test history.
 set -euo pipefail
 
 DQ_ENVIRONMENT="${DQ_ENVIRONMENT:-dev}"

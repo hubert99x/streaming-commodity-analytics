@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Run dbt build (compiles models + executes tests in dependency order).
+# Called by the scheduler or manually via: docker compose exec dbt-scheduler bash /ops/run_dbt_run.sh
 set -euo pipefail
 
 DBT_TARGET="${DBT_TARGET:-dev}"

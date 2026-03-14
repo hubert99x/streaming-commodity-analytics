@@ -1,6 +1,12 @@
--- Most recent price per commodity (PostgreSQL DISTINCT ON picks the first row per group)
--- Only scans the last 24 hours to avoid full table scan as raw_prices grows.
--- Falls back to full scan for commodities missing from the 24h window.
+-- Most recent price per commodity (1 row per instrument).
+-- Used by Grafana "Market Overview" dashboard for live price display.
+--
+-- PostgreSQL DISTINCT ON picks the first row per (commodity, symbol) group
+-- after ordering by event_ts DESC — effectively a "latest row per group" pattern.
+--
+-- Performance optimization: only scans the last 24 hours to avoid full table scan
+-- as raw_prices grows. Falls back to full scan for commodities missing from the
+-- 24h window (e.g. after extended system downtime).
 
 with recent as (
 

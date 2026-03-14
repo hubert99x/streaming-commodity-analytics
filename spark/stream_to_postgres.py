@@ -1,3 +1,9 @@
+"""
+Spark Structured Streaming job: consumes price events from Kafka,
+validates them against schema and price bounds, writes valid records
+to PostgreSQL via staging tables, and routes invalid records to a DLQ.
+"""
+
 import os
 import signal
 import sys
@@ -42,6 +48,7 @@ POSTGRES_DB = os.getenv("POSTGRES_DB", "commodities")
 POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
 
+# Unique ID for this Spark instance — used in DLQ to trace which stream produced errors
 STREAM_INSTANCE_ID = os.getenv("STREAM_INSTANCE_ID", "stream1")
 
 PG_URL = f"jdbc:postgresql://{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
@@ -57,11 +64,13 @@ DLQ_TABLE = os.getenv("PG_DLQ_TABLE", "monitoring.dead_letter_events")
 
 DLQ_STAGING_TABLE = os.getenv("PG_DLQ_STAGING_TABLE", "ingest.dlq_staging")
 
+# Backpressure: limits how many Kafka offsets Spark reads per micro-batch
 KAFKA_MAX_OFFSETS_PER_TRIGGER = os.getenv("KAFKA_MAX_OFFSETS_PER_TRIGGER", "5000")
 
 # =========================
 # Kafka options
 # =========================
+# "earliest" = replay all unprocessed messages on first start; "latest" = skip history
 STARTING_OFFSETS = os.getenv("KAFKA_STARTING_OFFSETS", "earliest").lower()
 if STARTING_OFFSETS not in ("earliest", "latest"):
     STARTING_OFFSETS = "earliest"
@@ -87,7 +96,11 @@ event_schema = StructType([
 
 
 def _get_jdbc_driver(spark: SparkSession):
-    """Get a PostgreSQL JDBC driver instance via Spark's classloader."""
+    """Get a PostgreSQL JDBC driver instance via Spark's JVM classloader.
+
+    Uses Spark's internal JVM gateway (py4j) to load the JDBC driver,
+    avoiding the need for a separate psycopg2 dependency in the Spark image.
+    """
     jvm = spark._sc._jvm
     tcl = jvm.java.lang.Thread.currentThread().getContextClassLoader()
     driver_class = jvm.java.lang.Class.forName("org.postgresql.Driver", True, tcl)
@@ -100,8 +113,8 @@ def _get_jdbc_props(spark: SparkSession):
     props = jvm.java.util.Properties()
     props.setProperty("user", POSTGRES_USER)
     props.setProperty("password", POSTGRES_PASSWORD)
-    props.setProperty("connectTimeout", "10")   # 10 seconds to establish connection
-    props.setProperty("socketTimeout", "30")     # 30 seconds for query execution
+    props.setProperty("connectTimeout", "10")
+    props.setProperty("socketTimeout", "30")
     return props
 
 
@@ -351,8 +364,10 @@ if __name__ == "__main__":
 
     spark.sparkContext.setLogLevel(os.getenv("SPARK_LOG_LEVEL", "WARN"))
 
-    # Read Kafka stream (with backpressure limit)
-    # IMPORTANT: do NOT set kafka.group.id; Spark uses checkpoint to track offsets safely.
+    # Read Kafka stream as a DataFrame of raw bytes.
+    # IMPORTANT: do NOT set kafka.group.id — Spark manages offsets via its own
+    # checkpoint directory, not Kafka consumer groups. Setting group.id would cause
+    # offset conflicts and potential data loss on restart.
     df_kafka = (
         spark.readStream
         .format("kafka")
@@ -364,6 +379,7 @@ if __name__ == "__main__":
         .load()
     )
 
+    # Extract raw JSON payload and Kafka metadata (topic, partition, offset)
     df_base = df_kafka.select(
         expr("CAST(value AS STRING)").alias("raw_payload"),
         col("topic").alias("kafka_topic"),
@@ -371,6 +387,8 @@ if __name__ == "__main__":
         col("offset").alias("kafka_offset"),
     )
 
+    # Parse JSON string into structured columns using the expected schema.
+    # If JSON is malformed, all fields in "e" will be NULL (caught by validation chain).
     df_parsed = df_base.withColumn("e", from_json(col("raw_payload"), event_schema))
 
     df_clean = (
@@ -387,8 +405,12 @@ if __name__ == "__main__":
         .drop("timestamp")
     )
 
-    # Build validation chain — price bounds are driven by validation.PRICE_BOUNDS
+    # Build PySpark validation chain as a single CASE WHEN expression.
+    # Each .when() is evaluated in order — first match wins.
+    # Price bounds are imported from validation.PRICE_BOUNDS (single source of truth).
+    # Invalid rows get an error_reason string; valid rows get NULL.
     validation_chain = (
+        # All core fields NULL → JSON parsing failed completely
         when(
             col("event_id").isNull()
             & col("commodity").isNull()
@@ -421,6 +443,10 @@ if __name__ == "__main__":
 
     foreach_fn = make_foreach_batch(spark)
 
+    # Start the streaming query with 300-second micro-batch trigger.
+    # Trigger interval (300s) is intentionally shorter than producer polling (360s)
+    # to ensure data is processed before the next batch arrives, minimizing latency.
+    # Checkpoint directory stores Kafka offsets for exactly-once recovery on restart.
     query = (
         df_with_reason.writeStream
         .foreachBatch(foreach_fn)

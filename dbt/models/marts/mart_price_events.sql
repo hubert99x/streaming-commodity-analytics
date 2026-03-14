@@ -6,7 +6,16 @@
     post_hook="CREATE INDEX IF NOT EXISTS idx_{{ this.name }}_event_ts ON {{ this }} (event_ts DESC)"
   )
 }}
--- Detect significant price changes between consecutive observations
+-- Detect significant price changes between consecutive observations.
+-- Used by Grafana "Recent Price Events" table and "Market Summary" panel.
+--
+-- Classifies each price change as MEDIUM_MOVE / LARGE_MOVE / EXTREME_MOVE
+-- using per-commodity thresholds that reflect each asset's typical volatility.
+-- NORMAL changes are filtered out (WHERE event_type <> 'NORMAL') to keep
+-- the table focused on actionable price movements.
+--
+-- Incremental: looks back 2 hours so the LAG() window function can see
+-- the row before the incremental boundary, avoiding false "first observation" gaps.
 
 with base as (
 

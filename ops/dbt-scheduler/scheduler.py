@@ -30,6 +30,7 @@ POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
 
 HEALTH_FILE = Path("/tmp/dbt_scheduler_alive")
 
+# Threading lock prevents overlapping dbt runs (build and test share the lock)
 _lock = threading.Lock()
 _running = True
 _last_build_ok = True
@@ -200,6 +201,8 @@ def main():
         flush=True,
     )
 
+    # Track last execution time per task (monotonic clock).
+    # Initialized to 0.0 so all tasks run immediately on startup.
     last_build = 0.0
     last_test = 0.0
     last_cleanup = 0.0

@@ -16,43 +16,50 @@ CREATE SCHEMA IF NOT EXISTS monitoring;
 -- =========================================================
 -- 2) Core tables
 -- =========================================================
+-- Main fact table: one row per price observation.
+-- event_id (UUID5) is deterministic — same (commodity, timestamp) always produces the same ID,
+-- enabling idempotent inserts via ON CONFLICT (event_id) DO NOTHING.
 CREATE TABLE IF NOT EXISTS public.raw_prices (
-    event_id         TEXT PRIMARY KEY,
-    commodity        TEXT NOT NULL,
-    symbol           TEXT NOT NULL,
+    event_id         TEXT PRIMARY KEY,        -- deterministic UUID5(commodity:timestamp)
+    commodity        TEXT NOT NULL,            -- e.g. 'gold', 'bitcoin', 'eurusd'
+    symbol           TEXT NOT NULL,            -- e.g. 'XAU/USD', 'BTC/USD', 'EUR/USD'
     price            DOUBLE PRECISION NOT NULL,
-    currency         TEXT NOT NULL,
-    event_ts         TIMESTAMP NOT NULL,
-    source           TEXT,
-    ingest_ts        TIMESTAMP,
-    kafka_partition  INTEGER,
-    kafka_offset     BIGINT
+    currency         TEXT NOT NULL,            -- always 'USD' in current schema
+    event_ts         TIMESTAMP NOT NULL,       -- when the price was observed at the source
+    source           TEXT,                     -- e.g. 'twelvedata_rest'
+    ingest_ts        TIMESTAMP,               -- when Spark wrote this row
+    kafka_partition  INTEGER,                  -- for debugging and lag monitoring
+    kafka_offset     BIGINT                   -- for debugging and lag monitoring
 );
 
 -- =========================================================
 -- 3) Monitoring tables
 -- =========================================================
+-- Tracks every Twelve Data API call (success and failure) for observability.
+-- Used by Grafana panels: API Calls, API Errors, API P95 Latency, API Success Rate.
 CREATE TABLE IF NOT EXISTS monitoring.api_calls (
     id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ts_utc       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    symbols      TEXT,
-    http_status  INTEGER,
+    symbols      TEXT,          -- comma-separated symbols requested
+    http_status  INTEGER,       -- NULL if request failed before HTTP response
     latency_ms   INTEGER,
     ok           BOOLEAN NOT NULL,
-    error_type   TEXT,
+    error_type   TEXT,          -- e.g. 'RATE_LIMIT_429', 'SERVER_500', 'EXCEPTION'
     error_msg    TEXT
 );
 
+-- Dead Letter Queue: stores Kafka records that failed Spark validation.
+-- Enables debugging bad data without losing the original payload.
 CREATE TABLE IF NOT EXISTS monitoring.dead_letter_events (
     id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ts_utc              TIMESTAMPTZ NOT NULL DEFAULT now(),
-    stream_instance_id  TEXT,
-    batch_id            INTEGER,
+    stream_instance_id  TEXT,       -- identifies which Spark instance produced the error
+    batch_id            INTEGER,    -- Spark micro-batch number
     topic               TEXT,
     kafka_partition     INTEGER,
-    kafka_offset        BIGINT,
-    error_reason        TEXT,
-    raw_payload         TEXT
+    kafka_offset        BIGINT,     -- exact Kafka offset for tracing
+    error_reason        TEXT,       -- e.g. 'JSON_PARSE_ERROR_OR_EMPTY', 'MISSING_FIELD:event_id'
+    raw_payload         TEXT        -- original JSON string from Kafka
 );
 
 -- DLQ idempotent upsert constraint (prevents duplicate DLQ entries on batch replay).
@@ -67,6 +74,8 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+-- Kafka consumer lag snapshots, recorded every 60s by the kafka-lag monitor service.
+-- Used by Grafana to detect if Spark is falling behind on processing.
 CREATE TABLE IF NOT EXISTS monitoring.kafka_lag (
     id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     group_id            TEXT NOT NULL,
@@ -76,6 +85,8 @@ CREATE TABLE IF NOT EXISTS monitoring.kafka_lag (
     max_partition_lag   BIGINT
 );
 
+-- Grafana alert history: every alert webhook payload is logged here.
+-- Enables post-incident analysis without depending on Grafana's internal storage.
 CREATE TABLE IF NOT EXISTS monitoring.alert_events (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ts_utc          TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -90,6 +101,8 @@ CREATE TABLE IF NOT EXISTS monitoring.alert_events (
     raw_payload     JSONB
 );
 
+-- dbt test execution history: logged by run_dbt_test.sh after each test run.
+-- Feeds the Grafana "dbt Test Runs" panel and "DBT Pass Rate" stat.
 CREATE TABLE IF NOT EXISTS monitoring.dbt_test_runs (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ts_utc      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -103,6 +116,8 @@ CREATE TABLE IF NOT EXISTS monitoring.dbt_test_runs (
     skipped     INTEGER
 );
 
+-- Backup history: logged by backup-cron container after each pg_dump.
+-- Feeds the Grafana "Backup Freshness" panel.
 CREATE TABLE IF NOT EXISTS monitoring.backup_log (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ts_utc          TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Retention job: runs as a standalone container (ops profile) on a cron schedule.
+# Three phases:
+#   1) Delete records older than 90 days from all tables (shared retention.sql)
+#   2) Drop leftover Spark staging tables in public schema
+#   3) Weekly VACUUM ANALYZE on Sundays (reclaims disk space, updates query planner stats)
 set -euo pipefail
 
 echo "Starting retention job..."

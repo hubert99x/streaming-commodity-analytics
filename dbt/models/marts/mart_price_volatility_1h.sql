@@ -6,7 +6,15 @@
     post_hook="CREATE INDEX IF NOT EXISTS idx_{{ this.name }}_bucket ON {{ this }} (hour_bucket DESC)"
   )
 }}
--- Hourly volatility metrics based on stream observations
+-- Hourly volatility metrics: avg price, range, std dev per instrument per hour.
+-- Used by Grafana "Price Statistics" table, "Hourly Range" chart, and "Market Summary" panel.
+--
+-- range_pct = (high - low) / avg * 100 — a normalized measure of price spread
+-- that allows comparing volatility across instruments with different price levels
+-- (e.g. BTC at $70k vs EUR/USD at $1.08).
+--
+-- Excludes the current incomplete hour to avoid artificially low volatility readings.
+-- Incremental: recomputes the last 2 completed hours to handle late-arriving data.
 
 with base as (
 

@@ -1,3 +1,10 @@
+"""
+Grafana alert webhook receiver.
+
+Listens for Grafana alert notifications on POST /grafana,
+extracts alert metadata, and logs them to monitoring.alert_events.
+"""
+
 import json
 import os
 import sys
@@ -7,8 +14,6 @@ import psycopg2
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
-
-# Postgres connection (from env)
 PGHOST = os.getenv("POSTGRES_HOST", "postgres")
 PGPORT = int(os.getenv("POSTGRES_PORT", "5432"))
 PGDATABASE = os.getenv("POSTGRES_DB", "")
@@ -44,7 +49,7 @@ def _connect():
 
 
 def _get_first_alert(payload: dict) -> dict:
-    # Grafana webhook commonly sends {"alerts":[...], ...}
+    """Extract the first alert from Grafana's {"alerts":[...]} webhook payload."""
     alerts = payload.get("alerts")
     if isinstance(alerts, list) and alerts:
         a0 = alerts[0]
@@ -88,17 +93,20 @@ def grafana_webhook():
     labels = alert0.get("labels") if isinstance(alert0.get("labels"), dict) else {}
     annotations = alert0.get("annotations") if isinstance(alert0.get("annotations"), dict) else {}
 
+    # Extract alert metadata with fallback field names to handle different
+    # Grafana versions (v9 uses "fingerprint", v10 uses "ruleUid", etc.)
     severity = _pick(labels, "severity", default=None)
     alert_uid = _pick(alert0, "fingerprint", "ruleUid", "uid", default=None)
     alert_title = _pick(annotations, "summary", "title", default=_pick(alert0, "title", default=None))
     state = _pick(alert0, "status", "state", default=_pick(payload, "state", default=None))
 
-    # These fields vary by Grafana version / config, keep best-effort
+    # These fields vary by Grafana version / config, extract best-effort
     org_id = payload.get("orgId")
     dashboard_uid = payload.get("dashboardUID") or payload.get("dashboardUid")
     panel_id = payload.get("panelId")
 
-    # Insert into Postgres (never crash)
+    # Insert into Postgres — wrapped in try/except so a DB failure
+    # never crashes the webhook receiver (Grafana would stop retrying)
     try:
         conn = _connect()
         with conn:

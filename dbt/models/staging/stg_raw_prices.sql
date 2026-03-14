@@ -1,5 +1,10 @@
+-- Staging layer for raw commodity prices.
+-- Materialized as a view (no data copy) — acts as a clean interface between
+-- the raw Spark sink and downstream mart models.
+--
 -- Explicit casts ensure consistent types even if source columns change.
--- "at time zone 'utc'" converts timestamptz to naive timestamp in UTC for downstream joins.
+-- "at time zone 'utc'" converts timestamptz to naive timestamp in UTC
+-- so that downstream time-based joins and aggregations work correctly.
 
 select
   event_id::text as event_id,

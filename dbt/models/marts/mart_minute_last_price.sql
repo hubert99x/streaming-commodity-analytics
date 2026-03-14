@@ -6,7 +6,12 @@
     post_hook="CREATE INDEX IF NOT EXISTS idx_{{ this.name }}_bucket ON {{ this }} (minute_bucket DESC)"
   )
 }}
--- Last observed price per minute bucket (most recent wins via ordered array_agg)
+-- Minute-level price aggregation: last observed price per minute bucket.
+-- Used as the base for the test_price_jump data quality test.
+--
+-- Incremental: on each run, only recomputes the last 30 minutes to handle
+-- late-arriving data without reprocessing the entire history.
+-- The ordered array_agg picks the latest price within each minute (event_id breaks ties).
 
 select
   commodity,

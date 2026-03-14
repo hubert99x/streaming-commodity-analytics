@@ -1,3 +1,11 @@
+"""
+Kafka consumer lag monitor.
+
+Polls broker watermark offsets and compares them against the last
+processed offset in public.raw_prices (since Spark uses checkpoint-based
+offsets, not consumer group commits). Logs lag to monitoring.kafka_lag.
+"""
+
 import os
 import time
 import psycopg2
@@ -18,6 +26,7 @@ POLL_INTERVAL = int(os.getenv("KAFKA_LAG_POLL_SEC", "60"))
 
 
 def get_connection():
+    """Open a new Postgres connection."""
     return psycopg2.connect(
         host=POSTGRES_HOST,
         port=POSTGRES_PORT,
@@ -28,12 +37,10 @@ def get_connection():
 
 
 def write_lag(total_lag, max_lag):
-
+    """Insert a lag measurement into monitoring.kafka_lag."""
     conn = get_connection()
-
     with conn:
         with conn.cursor() as cur:
-
             cur.execute(
                 """
                 INSERT INTO monitoring.kafka_lag
@@ -42,14 +49,13 @@ def write_lag(total_lag, max_lag):
                 """,
                 (CONSUMER_GROUP, KAFKA_TOPIC, total_lag, max_lag)
             )
-
     conn.close()
 
 
 def get_processed_offsets():
-    """Returns {partition_id: max_kafka_offset} from raw_prices.
+    """Return {partition_id: max_kafka_offset} from raw_prices.
 
-    Queries the actual target table instead of Kafka consumer groups because
+    Queries the target table instead of Kafka consumer groups because
     Spark uses checkpoint-based offsets, not consumer group commits.
     """
     conn = get_connection()
@@ -68,14 +74,14 @@ def get_processed_offsets():
 
 
 def get_lag():
-
+    """Calculate total and max-partition lag by comparing broker watermarks to processed offsets."""
     admin = AdminClient({"bootstrap.servers": KAFKA_BOOTSTRAP})
     cluster_md = admin.list_topics(timeout=10)
     partition_ids = list(cluster_md.topics[KAFKA_TOPIC].partitions.keys())
 
     processed = get_processed_offsets()
 
-    # Temporary consumer group - used only to query broker watermark offsets, not for consuming
+    # Temporary consumer — used only to query broker watermark offsets, not for consuming
     consumer = Consumer({"bootstrap.servers": KAFKA_BOOTSTRAP, "group.id": "__kafka_lag_inspector__"})
 
     total_lag = 0
@@ -83,9 +89,10 @@ def get_lag():
 
     try:
         for p in partition_ids:
-            # high = next offset to be assigned; last_processed+1 = first unprocessed
+            # high = next offset that will be assigned (i.e. end of partition)
+            # lag = high - (last_processed + 1) = number of unprocessed messages
             _, high = consumer.get_watermark_offsets(TopicPartition(KAFKA_TOPIC, p), timeout=5)
-            last_processed = processed.get(p, -1)
+            last_processed = processed.get(p, -1)  # -1 if no records processed yet
             lag = max(0, high - (last_processed + 1))
             total_lag += lag
             if lag > max_lag:
@@ -97,21 +104,15 @@ def get_lag():
 
 
 def main():
-
+    """Poll Kafka lag at regular intervals and log to Postgres."""
     print(f"[kafka-lag] bootstrap={KAFKA_BOOTSTRAP} topic={KAFKA_TOPIC} group={CONSUMER_GROUP}")
 
     while True:
-
         try:
-
             total_lag, max_lag = get_lag()
-
             write_lag(total_lag, max_lag)
-
             print(f"[kafka-lag] total_lag={total_lag} max_partition_lag={max_lag}")
-
         except Exception as e:
-
             print(f"[kafka-lag] error: {e}")
 
         time.sleep(POLL_INTERVAL)

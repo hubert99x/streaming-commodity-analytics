@@ -69,6 +69,7 @@ GRANT SELECT ON TABLES TO grafana_read;
 GRANT USAGE ON SCHEMA analytics TO grafana_read;
 GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO grafana_read;
 
--- (optional but usually needed for panels)
+-- Monitoring tables needed by Grafana dashboard panels
+-- (Pipeline & Data Quality dashboard reads from multiple monitoring tables)
 GRANT USAGE ON SCHEMA monitoring TO grafana_read;
 GRANT SELECT ON TABLE monitoring.dbt_test_runs TO grafana_read;
