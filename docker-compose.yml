@@ -486,7 +486,7 @@ services:
     restart: unless-stopped
 
   # =========================
-  # Retention (OPS job - run manually)
+  # Retention (OPS job - manual override; automated via dbt-scheduler every 24h)
   # =========================
   retention:
     profiles: ["ops"]
@@ -500,6 +500,8 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./ops/sql:/ops/sql:ro
     networks:
       - database
     cap_drop:

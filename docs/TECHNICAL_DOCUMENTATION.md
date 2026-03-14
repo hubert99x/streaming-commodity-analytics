@@ -187,7 +187,7 @@ The pipeline achieves **effective exactly-once** semantics through layered idemp
 **Key behaviors:**
 - **Trigger:** 300-second processing intervals. `maxOffsetsPerTrigger=5000` limits backpressure.
 - **Offset management:** Checkpoint directory (not Kafka consumer groups). Each Spark instance maintains its own offset state.
-- **Validation pipeline:** Multi-level checks per record (logic extracted to `spark/validation.py` for testability — 27 unit tests):
+- **Validation pipeline:** Multi-level checks per record (logic extracted to `spark/validation.py` for testability — 27 unit tests). Price bounds and schema version are imported from the shared `validation.py` module (single source of truth):
   - Null field detection (MISSING_FIELD errors)
   - Price positivity check
   - Schema version check (must be `1`)

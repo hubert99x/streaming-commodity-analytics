@@ -150,16 +150,7 @@ def _cleanup_ingest_tables():
 
 
 def _run_retention():
-    """Delete records older than 90 days from all data and monitoring tables."""
-    retention_sql = """
-DELETE FROM public.raw_prices WHERE event_ts < now() - interval '90 days';
-DELETE FROM monitoring.dead_letter_events WHERE ts_utc < now() - interval '90 days';
-DELETE FROM monitoring.alert_events WHERE ts_utc < now() - interval '90 days';
-DELETE FROM monitoring.api_calls WHERE ts_utc < now() - interval '90 days';
-DELETE FROM monitoring.kafka_lag WHERE ts_utc < now() - interval '90 days';
-DELETE FROM monitoring.dbt_test_runs WHERE ts_utc < now() - interval '90 days';
-DELETE FROM monitoring.backup_log WHERE ts_utc < now() - interval '90 days';
-"""
+    """Run retention cleanup using shared retention.sql file."""
     try:
         print(f"[dbt-scheduler] {_now_iso()} starting retention cleanup...", flush=True)
         result = subprocess.run(
@@ -171,7 +162,7 @@ DELETE FROM monitoring.backup_log WHERE ts_utc < now() - interval '90 days';
                 "-U", POSTGRES_USER,
                 "-d", POSTGRES_DB,
                 "-v", "ON_ERROR_STOP=1",
-                "-c", retention_sql,
+                "-f", "/ops/sql/retention.sql",
             ],
             capture_output=True,
             text=True,

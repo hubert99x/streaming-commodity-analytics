@@ -22,6 +22,8 @@ from pyspark.sql.types import (
 )
 import pyspark.sql.functions as F
 
+from validation import PRICE_BOUNDS, SUPPORTED_SCHEMA_VERSION
+
 
 # =========================
 # Env config
@@ -385,45 +387,37 @@ if __name__ == "__main__":
         .drop("timestamp")
     )
 
-    df_with_reason = (
-        df_clean
-        .withColumn(
-            "error_reason",
-            when(
-                col("event_id").isNull()
-                & col("commodity").isNull()
-                & col("symbol").isNull()
-                & col("price").isNull(),
-                lit("JSON_PARSE_ERROR_OR_EMPTY"),
-            )
-            .when(col("event_id").isNull(), lit("MISSING_FIELD:event_id"))
-            .when(col("commodity").isNull(), lit("MISSING_FIELD:commodity"))
-            .when(col("symbol").isNull(), lit("MISSING_FIELD:symbol"))
-            .when(col("price").isNull(), lit("MISSING_FIELD:price"))
-            .when(col("currency").isNull(), lit("MISSING_FIELD:currency"))
-            .when(col("source").isNull(), lit("MISSING_FIELD:source"))
-            .when(col("event_ts").isNull(), lit("INVALID_FIELD:event_ts"))
-            .when(col("price") <= lit(0), lit("INVALID_FIELD:price<=0"))
-            .when(col("schema_version") != lit(1), lit("UNSUPPORTED_SCHEMA_VERSION"))
-            # Per-commodity sanity bounds catch absurd API values
-            .when(
-                (col("symbol") == "XAU/USD")
-                & ((col("price") < lit(500)) | (col("price") > lit(15000))),
-                lit("INVALID_FIELD:price_out_of_range"),
-            )
-            .when(
-                (col("symbol") == "BTC/USD")
-                & ((col("price") < lit(100)) | (col("price") > lit(1000000))),
-                lit("INVALID_FIELD:price_out_of_range"),
-            )
-            .when(
-                (col("symbol") == "EUR/USD")
-                & ((col("price") < lit(0.5)) | (col("price") > lit(2.0))),
-                lit("INVALID_FIELD:price_out_of_range"),
-            )
-            .otherwise(lit(None))
+    # Build validation chain — price bounds are driven by validation.PRICE_BOUNDS
+    validation_chain = (
+        when(
+            col("event_id").isNull()
+            & col("commodity").isNull()
+            & col("symbol").isNull()
+            & col("price").isNull(),
+            lit("JSON_PARSE_ERROR_OR_EMPTY"),
         )
+        .when(col("event_id").isNull(), lit("MISSING_FIELD:event_id"))
+        .when(col("commodity").isNull(), lit("MISSING_FIELD:commodity"))
+        .when(col("symbol").isNull(), lit("MISSING_FIELD:symbol"))
+        .when(col("price").isNull(), lit("MISSING_FIELD:price"))
+        .when(col("currency").isNull(), lit("MISSING_FIELD:currency"))
+        .when(col("source").isNull(), lit("MISSING_FIELD:source"))
+        .when(col("event_ts").isNull(), lit("INVALID_FIELD:event_ts"))
+        .when(col("price") <= lit(0), lit("INVALID_FIELD:price<=0"))
+        .when(col("schema_version") != lit(SUPPORTED_SCHEMA_VERSION), lit("UNSUPPORTED_SCHEMA_VERSION"))
     )
+
+    # Per-commodity sanity bounds from shared PRICE_BOUNDS (single source of truth)
+    for symbol, (lo, hi) in PRICE_BOUNDS.items():
+        validation_chain = validation_chain.when(
+            (col("symbol") == symbol)
+            & ((col("price") < lit(lo)) | (col("price") > lit(hi))),
+            lit("INVALID_FIELD:price_out_of_range"),
+        )
+
+    validation_chain = validation_chain.otherwise(lit(None))
+
+    df_with_reason = df_clean.withColumn("error_reason", validation_chain)
 
     foreach_fn = make_foreach_batch(spark)
 

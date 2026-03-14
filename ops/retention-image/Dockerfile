@@ -27,7 +27,6 @@ RUN chmod 0755 /usr/local/bin/gosu \
 
 WORKDIR /ops
 
-COPY retention.sql /ops/retention.sql
 COPY run_retention.sh /ops/run_retention.sh
 
 RUN chmod 0755 /ops/run_retention.sh

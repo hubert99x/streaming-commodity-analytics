@@ -10,13 +10,8 @@ echo "Starting retention job..."
 
 CONN="host=${POSTGRES_HOST} port=${POSTGRES_PORT} dbname=${POSTGRES_DB} user=${POSTGRES_USER}"
 
-# 1) Delete raw data older than 90 days (balance between analytical depth and storage)
-psql "${CONN}" -v ON_ERROR_STOP=1 <<'SQL'
-DELETE FROM public.raw_prices
-WHERE event_ts < now() - interval '90 days';
-
-ANALYZE public.raw_prices;
-SQL
+# 1) Run shared retention SQL (delete records older than 90 days)
+psql "${CONN}" -v ON_ERROR_STOP=1 -f /ops/sql/retention.sql
 
 # 2) Cleanup leftover staging tables (Spark batch temp tables)
 psql "${CONN}" -v ON_ERROR_STOP=1 <<'SQL'

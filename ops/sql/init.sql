@@ -55,6 +55,18 @@ CREATE TABLE IF NOT EXISTS monitoring.dead_letter_events (
     raw_payload         TEXT
 );
 
+-- DLQ idempotent upsert constraint (prevents duplicate DLQ entries on batch replay).
+-- Required by Spark's INSERT ... ON CONFLICT (stream_instance_id, batch_id, kafka_partition, kafka_offset).
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'uq_dlq_event'
+    ) THEN
+        ALTER TABLE monitoring.dead_letter_events
+        ADD CONSTRAINT uq_dlq_event
+        UNIQUE (stream_instance_id, batch_id, kafka_partition, kafka_offset);
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS monitoring.kafka_lag (
     id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     group_id            TEXT NOT NULL,
