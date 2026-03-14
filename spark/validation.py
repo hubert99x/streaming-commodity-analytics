@@ -5,10 +5,10 @@ These mirror the PySpark column-expression validation in stream_to_postgres.py
 but can be tested without a SparkSession.
 """
 
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 # Per-commodity price bounds: (min_inclusive, max_inclusive)
-PRICE_BOUNDS: dict[str, tuple[float, float]] = {
+PRICE_BOUNDS: Dict[str, Tuple[float, float]] = {
     "XAU/USD": (500.0, 15_000.0),
     "BTC/USD": (100.0, 1_000_000.0),
     "EUR/USD": (0.5, 2.0),
