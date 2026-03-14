@@ -145,6 +145,43 @@ make restore FILE=backup_YYYYMMDD_HHMM.dump  # Restore from dump
 | `mart_price_events` | incremental | Significant price changes with per-commodity thresholds |
 | `mart_price_volatility_1h` | incremental | Hourly volatility metrics |
 
+## Grafana Dashboards & Alerts
+
+### Dashboards
+
+All three dashboards are auto-provisioned from JSON files in `grafana/dashboards/`.
+
+**Market Overview** — real-time operational view of the entire pipeline:
+- Live price charts (XAU/USD, BTC/USD, EUR/USD)
+- Pipeline Health: API Idle Time, Events per Cycle, Kafka Consumer Lag, Ingest Idle Time
+- API Metrics: calls count, errors, P95 latency, success rate
+
+**Market Analysis** — analytical view of price behavior:
+- Price Statistics table (latest price, min/max, range, std dev per instrument)
+- Hourly Price Change (%) time series
+- Recent Price Events table (MEDIUM / LARGE / EXTREME moves)
+
+**Pipeline & Data Quality** — monitoring and diagnostics:
+- Pipeline Status & Latency, Throughput per cycle (bar chart)
+- DLQ: events count (24h), DLQ Rate, DLQ Log table, DLQ Events per Day (7d)
+- dbt: test freshness (every 30min), pass rate, test runs table
+- Backup freshness (every 2h), Time Since Last Stream Write
+
+### Alert Rules (8 rules)
+
+All alerts evaluate every 30s and require the condition to persist for 2 minutes before firing. Alerts are sent to a Flask webhook receiver (`alert-receiver:5000`) which logs them to `monitoring.alert_events`.
+
+| Rule | Severity | Condition |
+|------|----------|-----------|
+| Time Since Last Ingest > 7m | critical | No new rows in `raw_prices` for 420s |
+| BTC events (15m) < 2 | warning | BTC is 24/7 — fewer than 2 events means pipeline stall |
+| API errors (18m) >= 1 | warning | Any API error in last 3 poll cycles |
+| API errors (18m) >= 3 | critical | Sustained API failures |
+| DLQ events (15m) > 0 | warning | Malformed records detected |
+| Kafka lag > 50 | warning | Consumer falling behind |
+| Kafka lag > 500 | critical | Severe backlog |
+| Kafka partition lag > 30 | warning | Single stuck partition (may be masked by healthy total lag) |
+
 ## Key Design Decisions
 
 - **Idempotent inserts** — `ON CONFLICT (event_id) DO NOTHING` prevents duplicates
@@ -195,6 +232,29 @@ streaming_system/
 └── .env.example           #   Environment variable template
 ```
 
+## Spark Checkpoints
+
+Spark uses a checkpoint directory (`spark_checkpoints` Docker volume) to track Kafka offsets and streaming state. This ensures exactly-once processing across container restarts.
+
+### When NOT to clear checkpoints
+- Changing dbt models or SQL
+- Changing Grafana dashboards or alerts
+- Changing retention policy or producer logic (without schema change)
+- Restarting containers
+
+### When to clear checkpoints
+- Changing the JSON schema produced to Kafka (e.g. adding/removing fields)
+- Changing the Spark `StructType` schema definition in `stream_to_postgres.py`
+- Changing the output columns written to PostgreSQL
+
+### How to clear checkpoints
+```bash
+make down
+docker volume rm streaming_system_spark_checkpoints
+make real
+```
+Spark will re-read from the earliest available Kafka offset and reprocess. Idempotent inserts (`ON CONFLICT DO NOTHING`) prevent duplicates.
+
 ## Troubleshooting
 
 | Problem | Cause | Solution |
@@ -204,6 +264,106 @@ streaming_system/
 | dbt test FAIL | System restart caused `ingest_ts - event_ts > 24h` | Will auto-resolve; see `_staging.yml` tolerance |
 | Spark crash-loop | Python version compatibility | Check `spark/validation.py` uses `typing.Dict` not `dict[]` |
 | High Pipeline Latency | Producer (360s) + Spark (300s) desync | Normal — max latency ~660s on weekends |
+
+### Common Operations
+
+**Restart a single service:**
+```bash
+docker compose restart spark-stream
+```
+
+**View logs for a specific service:**
+```bash
+docker compose logs -f --tail=100 producer
+```
+
+**Reset Kafka topic** (delete all messages and start fresh):
+```bash
+make down
+docker volume rm streaming_system_kafka_data
+docker volume rm streaming_system_spark_checkpoints
+make real
+```
+
+**Force dbt rebuild** (full refresh, not incremental):
+```bash
+docker compose exec dbt sh -lc 'cd /dbt && dbt run --full-refresh'
+```
+
+### Diagnostics
+
+**Connect to PostgreSQL shell:**
+```bash
+docker compose exec postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
+
+**Check if Spark is writing data:**
+```bash
+docker compose exec postgres sh -lc \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+   SELECT count(*) AS total_rows,
+          max(event_ts) AS newest_event,
+          max(ingest_ts) AS newest_ingest
+   FROM public.raw_prices;"'
+```
+
+**Check if Kafka topic exists and has data:**
+```bash
+docker compose exec kafka kafka-topics \
+  --bootstrap-server kafka:29092 \
+  --describe --topic commodity_prices
+```
+
+### Disaster Recovery
+
+**List available backups:**
+```bash
+docker compose exec postgres sh -lc 'ls -1t /backups/*.dump | head -n 5'
+```
+
+**Restore from backup** (simplest approach):
+```bash
+make restore FILE=backup_YYYYMMDD_HHMM.dump
+docker compose restart spark-stream grafana dbt-scheduler
+```
+
+If restore fails with "cannot drop schema" errors, drop schemas first:
+```bash
+docker compose exec postgres sh -lc \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+   DROP SCHEMA IF EXISTS analytics CASCADE;
+   DROP SCHEMA IF EXISTS monitoring CASCADE;"'
+make restore FILE=backup_YYYYMMDD_HHMM.dump
+```
+
+**Full reset + restore** (nuclear option):
+```bash
+make reset-restore FILE=backup_YYYYMMDD_HHMM.dump
+```
+
+### DLQ Investigation
+
+When DLQ Events > 0 in Grafana, check what's failing:
+```sql
+SELECT error_reason, count(*) AS n
+FROM monitoring.dead_letter_events
+WHERE ts_utc >= now() - interval '24 hours'
+GROUP BY 1
+ORDER BY n DESC;
+```
+
+### pgAdmin Access
+
+```bash
+make dev                    # starts dev profile (includes pgAdmin)
+```
+Open [http://localhost:5050](http://localhost:5050), login with credentials from `.env`.
+
+### Security Scanning
+
+```bash
+trivy image --scanners vuln --severity CRITICAL,HIGH --ignore-unfixed streaming_system-producer
+```
 
 ## License
 

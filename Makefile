@@ -22,11 +22,13 @@ dev:
 	$(COMPOSE) --profile dev --profile ops up -d
 	@$(COMPOSE) ps
 
+# Show all containers (including stopped)
 ps:
 	$(COMPOSE) ps
 
+# Show health of key services only (filtered view)
 health:
-	@$(COMPOSE) ps --format "table {{.Name}}\t{{.State}}\t{{.Status}}" | grep -E "(postgres|kafka|spark-stream|producer|grafana|dbt|dbt-scheduler|backup-cron|retention)" || true
+	@$(COMPOSE) ps --format "table {{.Name}}\t{{.State}}\t{{.Status}}" | grep -E "(postgres|kafka|spark-stream|producer|grafana|dbt|dbt-scheduler|alert-receiver|backup-cron|retention|kafka-lag)" || true
 
 logs:
 	$(COMPOSE) logs -f --tail=200
@@ -99,14 +101,14 @@ backup-logs:
 
 # Reset system (clean Docker state) - removes volumes (including Postgres data!)
 reset-system: downv
-	$(COMPOSE) --profile dev --profile ops up -d
+	$(COMPOSE) --profile ops up -d
 	@$(COMPOSE) ps
 
 # Reset system + restore DB + rebuild dbt
 # Usage: make reset-restore FILE=backup_YYYYMMDD_HHMM.dump
 reset-restore: downv
 	@if [ -z "$(FILE)" ]; then echo "ERROR: FILE is required. Example: make reset-restore FILE=backup_20260305_2200.dump"; exit 1; fi
-	$(COMPOSE) --profile dev --profile ops up -d
+	$(COMPOSE) --profile ops up -d
 	@echo "Waiting for Postgres to become ready..."
 	@sleep 10
 	$(MAKE) restore FILE=$(FILE)
