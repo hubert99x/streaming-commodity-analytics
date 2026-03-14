@@ -37,12 +37,22 @@ GRANT INSERT, SELECT ON TABLE monitoring.dead_letter_events TO spark_writer;
 -- Needs:
 --   - read raw_prices (source)
 --   - create/replace objects in analytics (models)
+--   - delete old records from public + monitoring (automated retention)
 -- =========================================================
 
 GRANT USAGE ON SCHEMA public TO dbt_runner;
-GRANT SELECT ON TABLE public.raw_prices TO dbt_runner;
+GRANT SELECT, DELETE ON TABLE public.raw_prices TO dbt_runner;
 
 GRANT USAGE, CREATE ON SCHEMA analytics TO dbt_runner;
+
+-- Retention: dbt_runner needs DELETE on monitoring tables for automated cleanup
+GRANT USAGE ON SCHEMA monitoring TO dbt_runner;
+GRANT DELETE ON TABLE monitoring.dead_letter_events TO dbt_runner;
+GRANT DELETE ON TABLE monitoring.alert_events TO dbt_runner;
+GRANT DELETE ON TABLE monitoring.api_calls TO dbt_runner;
+GRANT DELETE ON TABLE monitoring.kafka_lag TO dbt_runner;
+GRANT DELETE ON TABLE monitoring.dbt_test_runs TO dbt_runner;
+GRANT DELETE ON TABLE monitoring.backup_log TO dbt_runner;
 
 -- Auto-grant SELECT to grafana_read on future tables/views created by dbt_runner
 -- (so new dbt models are immediately visible in Grafana without manual grants)

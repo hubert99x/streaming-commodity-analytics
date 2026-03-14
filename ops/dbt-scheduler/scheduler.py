@@ -19,6 +19,7 @@ from pathlib import Path
 DBT_RUN_INTERVAL = int(os.getenv("DBT_RUN_INTERVAL_SEC", "360"))  # 6 minutes
 DBT_TEST_INTERVAL = int(os.getenv("DBT_TEST_INTERVAL_SEC", "1800"))  # 30 minutes
 INGEST_CLEANUP_INTERVAL = int(os.getenv("INGEST_CLEANUP_INTERVAL_SEC", "3600"))  # 1 hour
+RETENTION_INTERVAL = int(os.getenv("RETENTION_INTERVAL_SEC", "86400"))  # 24 hours
 DBT_TARGET = os.getenv("DBT_TARGET", "dev")
 
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "postgres")
@@ -148,6 +149,48 @@ def _cleanup_ingest_tables():
         print(f"[dbt-scheduler] {_now_iso()} ingest cleanup ERROR: {e}", flush=True)
 
 
+def _run_retention():
+    """Delete records older than 90 days from all data and monitoring tables."""
+    retention_sql = """
+DELETE FROM public.raw_prices WHERE event_ts < now() - interval '90 days';
+DELETE FROM monitoring.dead_letter_events WHERE ts_utc < now() - interval '90 days';
+DELETE FROM monitoring.alert_events WHERE ts_utc < now() - interval '90 days';
+DELETE FROM monitoring.api_calls WHERE ts_utc < now() - interval '90 days';
+DELETE FROM monitoring.kafka_lag WHERE ts_utc < now() - interval '90 days';
+DELETE FROM monitoring.dbt_test_runs WHERE ts_utc < now() - interval '90 days';
+DELETE FROM monitoring.backup_log WHERE ts_utc < now() - interval '90 days';
+"""
+    try:
+        print(f"[dbt-scheduler] {_now_iso()} starting retention cleanup...", flush=True)
+        result = subprocess.run(
+            [
+                "psql",
+                "-X",
+                "-h", POSTGRES_HOST,
+                "-p", POSTGRES_PORT,
+                "-U", POSTGRES_USER,
+                "-d", POSTGRES_DB,
+                "-v", "ON_ERROR_STOP=1",
+                "-c", retention_sql,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env={**os.environ, "PGPASSWORD": POSTGRES_PASSWORD},
+        )
+        if result.returncode == 0:
+            print(f"[dbt-scheduler] {_now_iso()} retention cleanup OK", flush=True)
+        else:
+            print(
+                f"[dbt-scheduler] {_now_iso()} retention cleanup FAILED (exit={result.returncode}): {result.stderr[:200]}",
+                flush=True,
+            )
+    except subprocess.TimeoutExpired:
+        print(f"[dbt-scheduler] {_now_iso()} retention cleanup TIMEOUT", flush=True)
+    except Exception as e:
+        print(f"[dbt-scheduler] {_now_iso()} retention cleanup ERROR: {e}", flush=True)
+
+
 def _handle_stop(signum, _frame):
     global _running
     _running = False
@@ -161,13 +204,15 @@ def main():
     print(
         f"[dbt-scheduler] {_now_iso()} scheduler started "
         f"(build every {DBT_RUN_INTERVAL}s, test every {DBT_TEST_INTERVAL}s, "
-        f"ingest cleanup every {INGEST_CLEANUP_INTERVAL}s)",
+        f"ingest cleanup every {INGEST_CLEANUP_INTERVAL}s, "
+        f"retention every {RETENTION_INTERVAL}s)",
         flush=True,
     )
 
     last_build = 0.0
     last_test = 0.0
     last_cleanup = 0.0
+    last_retention = 0.0
 
     while _running:
         _touch_health()
@@ -184,6 +229,10 @@ def main():
         if now - last_cleanup >= INGEST_CLEANUP_INTERVAL:
             _cleanup_ingest_tables()
             last_cleanup = time.monotonic()
+
+        if now - last_retention >= RETENTION_INTERVAL:
+            _run_retention()
+            last_retention = time.monotonic()
 
         # Sleep in 1-second ticks for responsive shutdown
         slept = 0

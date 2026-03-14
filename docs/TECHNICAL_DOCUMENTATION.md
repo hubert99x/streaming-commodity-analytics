@@ -215,6 +215,7 @@ The pipeline achieves **effective exactly-once** semantics through layered idemp
 - `dbt test` results parsed from `target/run_results.json` via `jq` and inserted into `monitoring.dbt_test_runs`.
 - 300-second timeout on subprocess execution.
 - **Automated ingest cleanup:** Periodically runs `cleanup_ingest_keep_2000.sql` to prune orphaned staging tables (configurable via `INGEST_CLEANUP_INTERVAL`, default 3600s).
+- **Automated retention:** Deletes records older than 90 days from all data and monitoring tables every 24 hours (configurable via `RETENTION_INTERVAL_SEC`). Replaces the previously manual retention service.
 - **Non-root execution:** Runs as UID 1000 (`USER 1000` in Dockerfile). Container hardened with `cap_drop: ALL`.
 
 **Weaknesses:**
@@ -247,11 +248,10 @@ The pipeline achieves **effective exactly-once** semantics through layered idemp
 **Retention (`retention`):** Manual trigger (restart: "no"). Deletes records older than 90 days from `raw_prices`, `dead_letter_events`, `alert_events`. Runs `VACUUM ANALYZE` on Sundays only.
 
 **Weaknesses:**
-- **Retention is not automated.** Unlike backup-cron, the retention service must be manually invoked. Without regular cleanup, `raw_prices` grows unbounded (backups still rotate, but the live table doesn't shrink).
 - **Backups are unencrypted.** Stored as plain `pg_dump` files on the host filesystem. No encryption at rest.
 - **No restore testing.** No automated verification that backups can be successfully restored.
 
-**Note:** All monitoring tables (`api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log`) now have 90-day retention policies alongside the existing `raw_prices`, `dead_letter_events`, and `alert_events` cleanup.
+**Note:** Retention is now automated via the dbt-scheduler (every 24 hours by default, configurable via `RETENTION_INTERVAL_SEC`). All tables — `raw_prices`, `dead_letter_events`, `alert_events`, `api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log` — are pruned at 90-day TTL. The `dbt_runner` role has been granted DELETE on the relevant tables.
 
 ---
 
@@ -597,7 +597,7 @@ All GitHub Actions are SHA-pinned to prevent supply chain attacks. The `.trivyig
 | # | Issue | Impact | Recommendation |
 |---|-------|--------|----------------|
 | 7 | **Single-node Kafka (RF=1)** | Any Kafka failure = full pipeline outage + potential data loss | Document as known limitation; for production, deploy 3-node cluster |
-| 8 | **Retention service is manual** | raw_prices grows unbounded unless operator remembers to run retention | Automate via cron or integrate into backup-cron schedule |
+| 8 | ~~Retention service is manual~~ | ~~raw_prices grows unbounded unless operator remembers~~ | **Fixed:** Automated via dbt-scheduler (every 24h, 90-day TTL) |
 | 9 | ~~No per-partition Kafka lag alert~~ | ~~Single stuck partition masked by total lag metric~~ | **Fixed:** Alert `kafka_partition_lag_warn_gt_30` added |
 | 10 | **Price bounds and event thresholds are hardcoded** | Changing market conditions require code changes + rebuilds | Externalize to config file or dbt vars |
 | 11 | ~~Advisory lock unlock failure silently swallowed~~ | ~~Potential batch-level deadlock until connection close~~ | **Fixed:** 3-attempt retry with explicit warning logging |
