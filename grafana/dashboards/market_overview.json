@@ -2100,7 +2100,7 @@
       "type": "stat"
     }
   ],
-  "refresh": "30s",
+  "refresh": "10s",
   "schemaVersion": 39,
   "tags": [],
   "templating": {
@@ -2113,8 +2113,8 @@
   "timeRangeUpdatedDuringEditOrView": false,
   "timepicker": {},
   "timezone": "utc",
-  "title": "Market Overview Copy Copy",
-  "uid": "bfg0m5peq1b0gc",
+  "title": "Market Overview",
+  "uid": "market-overview",
   "version": 1,
   "weekStart": ""
 }
