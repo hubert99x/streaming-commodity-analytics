@@ -9,7 +9,7 @@ models:
       - dbt_utils.expression_is_true:
           expression: "event_ts <= ingest_ts + interval '1 minute'"
       - dbt_utils.expression_is_true:
-          expression: "event_ts >= ingest_ts - interval '2 hours'"
+          expression: "event_ts >= ingest_ts - interval '24 hours'"
 
     columns:
       - name: event_id

@@ -5,9 +5,9 @@
         "builtIn": 1,
         "datasource": {
           "type": "grafana",
-          "uid": "-- Grafana --"
+          "uid": "grafana"
         },
-        "enable": true,
+        "enable": false,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 11,
+  "id": 33,
   "links": [],
   "panels": [
     {
@@ -32,11 +32,11 @@
           "mappings": [
             {
               "options": {
-                "CLOSED": {
+                "● CLOSED": {
                   "color": "red",
                   "index": 0
                 },
-                "OPEN": {
+                "● OPEN": {
                   "color": "green",
                   "index": 1
                 }
@@ -58,8 +58,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 3,
-        "w": 3,
+        "h": 2,
+        "w": 4,
         "x": 0,
         "y": 0
       },
@@ -76,8 +76,8 @@
         },
         "showPercentChange": false,
         "text": {
-          "titleSize": 17,
-          "valueSize": 17
+          "titleSize": 16,
+          "valueSize": 16
         },
         "textMode": "value_and_name",
         "wideLayout": true
@@ -122,7 +122,7 @@
         "uid": "postgres"
       },
       "gridPos": {
-        "h": 1,
+        "h": 2,
         "w": 17,
         "x": 4,
         "y": 0
@@ -150,7 +150,7 @@
         "h": 2,
         "w": 17,
         "x": 4,
-        "y": 1
+        "y": 2
       },
       "id": 44,
       "options": {
@@ -161,31 +161,6 @@
         },
         "content": "<div style=\"\n  text-align: center;\n  margin-bottom: 6px;\n  font-size: 22px;\n  font-weight: 600;\n  color: rgb(195, 205, 220);\n  letter-spacing: 1px;\n\">\n  KAFKA / DLQ\n</div>\n\n<div style=\"\n  height: 1px;\n  background-color: rgba(255,255,255,0.12);\n  width: 85%;\n  margin: 0 auto 20px auto;\n\"></div>",
         "mode": "html"
-      },
-      "pluginVersion": "11.0.0",
-      "transparent": true,
-      "type": "text"
-    },
-    {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
-      },
-      "gridPos": {
-        "h": 1,
-        "w": 17,
-        "x": 4,
-        "y": 3
-      },
-      "id": 51,
-      "options": {
-        "code": {
-          "language": "plaintext",
-          "showLineNumbers": false,
-          "showMiniMap": false
-        },
-        "content": "",
-        "mode": "markdown"
       },
       "pluginVersion": "11.0.0",
       "transparent": true,
@@ -211,11 +186,11 @@
               },
               {
                 "color": "yellow",
-                "value": 360
+                "value": 400
               },
               {
                 "color": "red",
-                "value": 720
+                "value": 700
               }
             ]
           },
@@ -291,94 +266,6 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 5,
-        "x": 10,
-        "y": 4
-      },
-      "id": 32,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "text": {
-          "valueSize": 50
-        },
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT count(*) AS dlq_events_24h\r\nFROM monitoring.dead_letter_events\r\nWHERE kafka_offset IS NOT NULL\r\n  AND ts_utc >= now() - interval '24 hours';",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "DLQ Events (last 24h)",
-      "transparent": true,
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
-      },
-      "fieldConfig": {
-        "defaults": {
           "custom": {
             "align": "auto",
             "cellOptions": {
@@ -421,7 +308,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 149
+                "value": 102
               }
             ]
           },
@@ -433,7 +320,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 252
+                "value": 210
               }
             ]
           },
@@ -445,7 +332,23 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 90
+                "value": 270
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "#"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 30
+              },
+              {
+                "id": "custom.align",
+                "value": "center"
               }
             ]
           }
@@ -453,8 +356,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 5,
-        "x": 17,
+        "w": 7,
+        "x": 9,
         "y": 4
       },
       "id": 29,
@@ -481,7 +384,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\r\n    to_char(ts_utc, 'YYYY-MM-DD HH24:MI') AS \"Time\",\r\n    error_reason AS \"Error\",\r\n    left(raw_payload, 60) AS \"Payload\"\r\nFROM monitoring.dead_letter_events\r\nORDER BY ts_utc DESC\r\nLIMIT 5;",
+          "rawSql": "SELECT\r\n  to_char(ts_utc, 'MM-DD HH24:MI') AS \"Time\",\r\n  replace(error_reason, 'JSON_PARSE_ERROR_OR_EMPTY', 'JSON_ERR') AS \"Error\",\r\n  kafka_offset AS \"#\",\r\n  left(raw_payload, 120) AS \"Payload\"\r\nFROM monitoring.dead_letter_events\r\nORDER BY ts_utc DESC\r\nLIMIT 20;",
           "refId": "Last DLQ event",
           "sql": {
             "columns": [
@@ -502,9 +405,97 @@
           }
         }
       ],
-      "title": "Latest DLQ",
+      "title": " DLQ Log",
       "transparent": true,
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 17,
+        "y": 4
+      },
+      "id": 32,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "text": {
+          "valueSize": 50
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS dlq_events_24h\r\nFROM monitoring.dead_letter_events\r\nWHERE ts_utc >= now() - interval '24 hours';",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "DLQ Events (last 24h)",
+      "transparent": true,
+      "type": "stat"
     },
     {
       "datasource": {
@@ -640,7 +631,101 @@
           }
         }
       ],
-      "title": "DBT Test Freshness",
+      "title": "DBT Test Freshness (every 30min)",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 120
+              },
+              {
+                "color": "red",
+                "value": 150
+              }
+            ]
+          },
+          "unit": " min"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 11
+      },
+      "id": 38,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "text": {
+          "valueSize": 50
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\r\nROUND(EXTRACT(EPOCH FROM (now() - max(backup_ts))) / 60)::int AS minutes_since_backup\r\nFROM monitoring.backup_log\r\nWHERE status = 'OK';",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Backup Freshness (every 2h)",
       "transparent": true,
       "type": "stat"
     },
@@ -681,8 +766,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 5,
-        "x": 10,
+        "w": 4,
+        "x": 13,
         "y": 11
       },
       "id": 40,
@@ -736,7 +821,7 @@
           }
         }
       ],
-      "title": "DBT Pass Rate",
+      "title": "dbt Tests Pass Rate",
       "transparent": true,
       "type": "stat"
     },
@@ -968,7 +1053,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "<div style=\"\n  text-align: center;\n  margin-bottom: 6px;\n  font-size: 22px;\n  font-weight: 600;\n  color: rgb(195, 205, 220);\n  letter-spacing: 1px;\n\">\n  PIPELINE HEALTH\n</div>\n\n<div style=\"\n  height: 1px;\n  background-color: rgba(255,255,255,0.12);\n  width: 85%;\n  margin: 0 auto 20px auto;\n\"></div>",
+        "content": "<div style=\"\n  text-align: center;\n  margin-bottom: 6px;\n  font-size: 22px;\n  font-weight: 600;\n  color: rgb(195, 205, 220);\n  letter-spacing: 1px;\n\">\n  PIPELINE OVERVIEW\n</div>\n\n<div style=\"\n  height: 1px;\n  background-color: rgba(255,255,255,0.12);\n  width: 85%;\n  margin: 0 auto 20px auto;\n\"></div>",
         "mode": "html"
       },
       "pluginVersion": "11.0.0",
@@ -985,7 +1070,6 @@
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -995,16 +1079,16 @@
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": 120
+                "color": "#EAB839",
+                "value": 360
               },
               {
                 "color": "red",
-                "value": 150
+                "value": 600
               }
             ]
           },
-          "unit": " min"
+          "unit": "s "
         },
         "overrides": []
       },
@@ -1014,7 +1098,7 @@
         "x": 3,
         "y": 18
       },
-      "id": 38,
+      "id": 54,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -1044,7 +1128,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\r\nROUND(EXTRACT(EPOCH FROM (now() - max(backup_ts))) / 60)::int AS minutes_since_backup\r\nFROM monitoring.backup_log\r\nWHERE status = 'OK';",
+          "rawSql": "SELECT\r\n  ROUND(AVG(EXTRACT(EPOCH FROM (ingest_ts - event_ts))))::int AS \"Pipeline Latency (s)\"\r\nFROM public.raw_prices\r\nWHERE ingest_ts >= now() - interval '30 minutes';",
           "refId": "A",
           "sql": {
             "columns": [
@@ -1065,7 +1149,7 @@
           }
         }
       ],
-      "title": "Backup Freshness",
+      "title": "Pipeline Latency",
       "transparent": true,
       "type": "stat"
     },
@@ -1176,7 +1260,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "select\r\n  case\r\n    when now() - max(event_ts) < interval '7 minutes' then 2\r\n    when now() - max(event_ts) < interval '15 minutes' then 1\r\n    else 0\r\n  end as pipeline_status_code\r\nfrom public.raw_prices;",
+          "rawSql": "select\r\n  case\r\n    when now() - max(event_ts) < interval '10 minutes' then 2\r\n    when now() - max(event_ts) < interval '20 minutes' then 1\r\n    else 0\r\n  end as pipeline_status_code\r\nfrom public.raw_prices;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -1363,121 +1447,6 @@
           "color": {
             "mode": "thresholds"
           },
-          "fieldMinMax": false,
-          "mappings": [
-            {
-              "options": {
-                "-1": {
-                  "color": "red",
-                  "index": 1,
-                  "text": "ERROR"
-                }
-              },
-              "type": "value"
-            },
-            {
-              "options": {
-                "match": "null",
-                "result": {
-                  "color": "red",
-                  "index": 0,
-                  "text": "NO DATA"
-                }
-              },
-              "type": "special"
-            }
-          ],
-          "max": 6,
-          "min": 0,
-          "noValue": "-1",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 5,
-        "x": 3,
-        "y": 25
-      },
-      "id": 28,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "text": {
-          "titleSize": 40,
-          "valueSize": 50
-        },
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT count(*) AS dlq_last_15m\r\nFROM monitoring.dead_letter_events\r\nWHERE ts_utc >= now() - interval '15 minutes';",
-          "refId": "Events (last 6 min)",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "DLQ Events (15 min)",
-      "transparent": true,
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -1518,8 +1487,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 5,
-        "x": 10,
+        "w": 7,
+        "x": 4,
         "y": 25
       },
       "id": 33,
@@ -1589,14 +1558,8 @@
       },
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "filterable": false,
-            "inspect": false,
-            "minWidth": 170
+          "color": {
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
@@ -1611,65 +1574,37 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "%"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Time"
-            },
-            "properties": [
-              {
-                "id": "custom.width"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Error"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 252
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Payload"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 250
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 5,
-        "x": 17,
+        "w": 7,
+        "x": 14,
         "y": 25
       },
       "id": 30,
       "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
           ],
-          "show": false
+          "fields": "",
+          "values": false
         },
-        "showHeader": true,
-        "sortBy": []
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 50,
+          "valueSize": 50
+        },
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "11.0.0",
       "targets": [
@@ -1681,7 +1616,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\r\n  to_char(ts_utc, 'YYYY-MM-DD HH24:MI') AS \"Time\",\r\n  error_reason AS \"Error\",\r\n  left(raw_payload, 40) AS \"Payload\"\r\nFROM monitoring.dead_letter_events\r\nORDER BY ts_utc DESC\r\nLIMIT 20;",
+          "rawSql": "SELECT\r\n  ROUND(100.0 \r\n    * (SELECT count(*) FROM monitoring.dead_letter_events WHERE ts_utc >= now() - interval '24 hours')\r\n    / NULLIF((SELECT count(*) FROM public.raw_prices WHERE ingest_ts >= now() - interval '24 hours'), 0)\r\n  , 4) AS \"DLQ Rate %\"",
           "refId": "DLQ Last 10",
           "sql": {
             "columns": [
@@ -1702,12 +1637,12 @@
           }
         }
       ],
-      "title": "DLQ Log",
+      "title": "DLQ Rate 24h",
       "transparent": true,
-      "type": "table"
+      "type": "stat"
     }
   ],
-  "refresh": "30s",
+  "refresh": "5s",
   "schemaVersion": 39,
   "tags": [],
   "templating": {

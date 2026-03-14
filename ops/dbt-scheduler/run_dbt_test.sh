@@ -42,6 +42,7 @@ fi
 echo "[dbt-test] status=$status total=$total pass=$pass warn=$warn error=$error fail=$fail skip=$skip"
 
 # Use parameterized query via psql variables to prevent SQL injection
+# Note: psql ignores -v variables in -c mode, so we pipe the query via stdin
 PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -d "${POSTGRES_DB}" -U "${POSTGRES_USER}" \
   -v ON_ERROR_STOP=1 \
   -v v_env="$DQ_ENVIRONMENT" \
@@ -52,9 +53,11 @@ PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT
   -v v_error="$error" \
   -v v_fail="$fail" \
   -v v_skip="$skip" \
-  -c "INSERT INTO monitoring.dbt_test_runs
-      (environment, status, total, pass, warn, error, fail, skipped)
-      VALUES
-      (:'v_env', :'v_status', :v_total, :v_pass, :v_warn, :v_error, :v_fail, :v_skip);"
+  <<'EOSQL'
+INSERT INTO monitoring.dbt_test_runs
+    (environment, status, total, pass, warn, error, fail, skipped)
+    VALUES
+    (:'v_env', :'v_status', :v_total, :v_pass, :v_warn, :v_error, :v_fail, :v_skip);
+EOSQL
 
 echo "[dbt-test] $(date -Is) done."

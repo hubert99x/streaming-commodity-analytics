@@ -5,9 +5,9 @@
         "builtIn": 1,
         "datasource": {
           "type": "grafana",
-          "uid": "-- Grafana --"
+          "uid": "grafana"
         },
-        "enable": true,
+        "enable": false,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
@@ -18,104 +18,9 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 9,
+  "id": 35,
   "links": [],
   "panels": [
-    {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "fieldMinMax": false,
-          "mappings": [
-            {
-              "options": {
-                "CLOSED": {
-                  "color": "red",
-                  "index": 0
-                },
-                "OPEN": {
-                  "color": "green",
-                  "index": 1
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 3,
-        "x": 0,
-        "y": 0
-      },
-      "id": 20,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/^status$/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "text": {
-          "titleSize": 17,
-          "valueSize": 17
-        },
-        "textMode": "value_and_name",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "WITH current_utc AS (\r\n  SELECT now() AT TIME ZONE 'UTC' AS utc_ts\r\n)\r\n\r\nSELECT\r\n  'XAU/USD' as instrument,\r\n  CASE\r\n    WHEN (\r\n      (extract(dow FROM utc_ts) = 5 AND utc_ts::time >= TIME '22:00')\r\n      OR extract(dow FROM utc_ts) = 6\r\n      OR (extract(dow FROM utc_ts) = 0 AND utc_ts::time < TIME '22:00')\r\n    )\r\n    THEN '● CLOSED'\r\n    ELSE '● OPEN'\r\n  END AS status\r\n\r\nFROM current_utc\r\n\r\nUNION ALL\r\n\r\nSELECT\r\n  'BTC/USD',\r\n  '● OPEN'\r\n\r\nUNION ALL\r\n\r\nSELECT\r\n  'EUR/USD',\r\n  CASE\r\n    WHEN (\r\n      (extract(dow FROM utc_ts) = 5 AND utc_ts::time >= TIME '22:00')\r\n      OR extract(dow FROM utc_ts) = 6\r\n      OR (extract(dow FROM utc_ts) = 0 AND utc_ts::time < TIME '22:00')\r\n    )\r\n    THEN '● CLOSED'\r\n    ELSE '● OPEN'\r\n  END\r\nFROM current_utc;",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "transparent": true,
-      "type": "stat"
-    },
     {
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -148,8 +53,8 @@
       },
       "gridPos": {
         "h": 1,
-        "w": 17,
-        "x": 3,
+        "w": 4,
+        "x": 0,
         "y": 0
       },
       "id": 8,
@@ -211,9 +116,9 @@
       },
       "gridPos": {
         "h": 1,
-        "w": 17,
-        "x": 3,
-        "y": 1
+        "w": 16,
+        "x": 4,
+        "y": 0
       },
       "id": 60,
       "options": {
@@ -234,11 +139,106 @@
         "type": "grafana-postgresql-datasource",
         "uid": "postgres"
       },
+      "fieldConfig": {
+        "defaults": {
+          "fieldMinMax": false,
+          "mappings": [
+            {
+              "options": {
+                "● CLOSED": {
+                  "color": "red",
+                  "index": 0
+                },
+                "● OPEN": {
+                  "color": "green",
+                  "index": 1
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 2,
-        "w": 17,
-        "x": 3,
-        "y": 2
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 20,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "/^status$/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 16,
+          "valueSize": 16
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH current_utc AS (\r\n  SELECT now() AT TIME ZONE 'UTC' AS utc_ts\r\n)\r\n\r\nSELECT\r\n  'XAU/USD' as instrument,\r\n  CASE\r\n    WHEN (\r\n      (extract(dow FROM utc_ts) = 5 AND utc_ts::time >= TIME '22:00')\r\n      OR extract(dow FROM utc_ts) = 6\r\n      OR (extract(dow FROM utc_ts) = 0 AND utc_ts::time < TIME '22:00')\r\n    )\r\n    THEN '● CLOSED'\r\n    ELSE '● OPEN'\r\n  END AS status\r\n\r\nFROM current_utc\r\n\r\nUNION ALL\r\n\r\nSELECT\r\n  'BTC/USD',\r\n  '● OPEN'\r\n\r\nUNION ALL\r\n\r\nSELECT\r\n  'EUR/USD',\r\n  CASE\r\n    WHEN (\r\n      (extract(dow FROM utc_ts) = 5 AND utc_ts::time >= TIME '22:00')\r\n      OR extract(dow FROM utc_ts) = 6\r\n      OR (extract(dow FROM utc_ts) = 0 AND utc_ts::time < TIME '22:00')\r\n    )\r\n    THEN '● CLOSED'\r\n    ELSE '● OPEN'\r\n  END\r\nFROM current_utc;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 16,
+        "x": 4,
+        "y": 1
       },
       "id": 55,
       "options": {
@@ -266,8 +266,7 @@
             "cellOptions": {
               "type": "auto"
             },
-            "inspect": false,
-            "minWidth": 100
+            "inspect": false
           },
           "mappings": [],
           "thresholds": {
@@ -296,60 +295,6 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Hourly Range"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "decimals",
-                "value": 2
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Largest Move"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "decimals",
-                "value": 2
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Avg Price"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 2
-              },
-              {
-                "id": "custom.align",
-                "value": "right"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
               "options": "Price Range"
             },
             "properties": [
@@ -358,94 +303,7 @@
                 "value": 2
               }
             ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 7,
-        "x": 3,
-        "y": 4
-      },
-      "id": 47,
-      "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
-        "showHeader": true
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres"
           },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "with latest_hour as (\r\n    select max(hour_bucket) as hour_bucket\r\n    from analytics.mart_price_volatility_1h\r\n),\r\n\r\nvolatility as (\r\n    select\r\n        symbol,\r\n        avg_price,\r\n        price_range,\r\n        range_pct\r\n    from analytics.mart_price_volatility_1h\r\n    where hour_bucket = (select hour_bucket from latest_hour)\r\n),\r\n\r\nmoves as (\r\n    select\r\n        symbol,\r\n        max(abs(price_change_pct)) as largest_move,\r\n        count(*) as events\r\n    from analytics.mart_price_events\r\n    where event_ts >= now() - interval '1 hour'\r\n    group by symbol\r\n)\r\n\r\nselect\r\n    v.symbol as \"Instrument\",\r\n\r\n    case\r\n        when v.symbol = 'EUR/USD'\r\n            then to_char(v.avg_price::numeric, 'FM9999999990.0000')\r\n        else\r\n            to_char(v.avg_price::numeric, 'FM9999999990.00')\r\n    end as \"Avg Price\",\r\n\r\n    round(v.price_range::numeric, 2) as \"Price Range\",\r\n    round(v.range_pct::numeric, 3) as \"Hourly Range\",\r\n    round(coalesce(m.largest_move,0)::numeric, 3) as \"Largest Move\",\r\n    coalesce(m.events,0) as \"Events\"\r\n\r\nfrom volatility v\r\nleft join moves m\r\n    on v.symbol = m.symbol\r\norder by v.range_pct desc;",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "Market Summary",
-      "transparent": true,
-      "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "minWidth": 100
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": [
           {
             "matcher": {
               "id": "byName",
@@ -458,59 +316,37 @@
               },
               {
                 "id": "unit",
-                "value": "percent"
+                "value": "%"
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Avg Price"
+              "options": "Largest Move"
             },
             "properties": [
               {
-                "id": "decimals",
-                "value": 2
+                "id": "unit",
+                "value": "%"
               },
               {
-                "id": "custom.align",
-                "value": "right"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Range"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 2
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "StdDev"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 2
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "h": 5,
-        "w": 7,
-        "x": 13,
-        "y": 4
+        "h": 6,
+        "w": 12,
+        "x": 6,
+        "y": 3
       },
-      "id": 46,
+      "id": 61,
       "options": {
         "cellHeight": "sm",
         "footer": {
@@ -533,7 +369,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "select\r\n    symbol as \"Instrument\",\r\n\r\n    case\r\n        when symbol = 'EUR/USD'\r\n            then to_char(avg_price::numeric, 'FM9999999990.0000')\r\n        else\r\n            to_char(avg_price::numeric, 'FM9999999990.00')\r\n    end as \"Avg Price\",\r\n\r\n    price_range as \"Range\",\r\n    range_pct as \"Range %\",\r\n    price_stddev as \"StdDev\",\r\n    observations_count as \"Observations\"\r\n\r\nfrom analytics.mart_price_volatility_1h\r\n\r\nwhere hour_bucket = (\r\n    select max(hour_bucket)\r\n    from analytics.mart_price_volatility_1h\r\n)\r\n\r\norder by range_pct desc;",
+          "rawSql": "with latest_hour as (\r\n    select max(hour_bucket) as hour_bucket\r\n    from analytics.mart_price_volatility_1h\r\n),\r\nvolatility as (\r\n    select symbol, avg_price, price_range, range_pct, price_stddev, observations_count\r\n    from analytics.mart_price_volatility_1h\r\n    where hour_bucket = (select hour_bucket from latest_hour)\r\n),\r\nmoves as (\r\n    select symbol, max(abs(price_change_pct)) as largest_move, count(*) as events\r\n    from analytics.mart_price_events\r\n    where event_ts >= (select hour_bucket from latest_hour)\r\n      and event_ts <  (select hour_bucket + interval '1 hour' from latest_hour)\r\n    group by symbol\r\n)\r\nselect\r\n    v.symbol as \"Instrument\",\r\n    case when v.symbol = 'EUR/USD' then to_char(v.avg_price::numeric, 'FM9999999990.0000')\r\n         else to_char(v.avg_price::numeric, 'FM9999999990.00') end as \"Avg Price\",\r\n    round(v.price_range::numeric, 4) as \"Price Range\",\r\n    round(v.range_pct::numeric, 3) as \"Range %\",\r\n    round(v.price_stddev::numeric, 4) as \"StdDev\",\r\n    round(coalesce(m.largest_move,0)::numeric, 3) as \"Largest Move\",\r\n    coalesce(m.events,0) as \"Events\",\r\n    v.observations_count as \"Observations\"\r\nfrom volatility v\r\nleft join moves m on v.symbol = m.symbol\r\norder by v.range_pct desc;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -564,9 +400,9 @@
         "uid": "postgres"
       },
       "gridPos": {
-        "h": 3,
-        "w": 17,
-        "x": 3,
+        "h": 2,
+        "w": 14,
+        "x": 5,
         "y": 9
       },
       "id": 59,
@@ -590,9 +426,9 @@
       },
       "gridPos": {
         "h": 2,
-        "w": 17,
-        "x": 3,
-        "y": 12
+        "w": 14,
+        "x": 5,
+        "y": 11
       },
       "id": 54,
       "options": {
@@ -673,9 +509,9 @@
       },
       "gridPos": {
         "h": 15,
-        "w": 9,
-        "x": 1,
-        "y": 14
+        "w": 8,
+        "x": 3,
+        "y": 13
       },
       "id": 45,
       "options": {
@@ -724,7 +560,7 @@
           }
         }
       ],
-      "title": "Hourly Range",
+      "title": "Hourly Price Change (%)",
       "transparent": true,
       "type": "timeseries"
     },
@@ -781,11 +617,11 @@
               },
               {
                 "id": "unit",
-                "value": "percent"
+                "value": "%"
               },
               {
                 "id": "custom.width",
-                "value": 100
+                "value": 80
               },
               {
                 "id": "custom.cellOptions",
@@ -808,6 +644,10 @@
               {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
               }
             ]
           },
@@ -824,6 +664,10 @@
               {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
               }
             ]
           },
@@ -835,7 +679,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 205
+                "value": 95
               }
             ]
           },
@@ -847,7 +691,35 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 122
+                "value": 105
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Date"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Event"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "auto"
+              },
+              {
+                "id": "custom.width",
+                "value": 145
               }
             ]
           }
@@ -855,9 +727,9 @@
       },
       "gridPos": {
         "h": 15,
-        "w": 9,
+        "w": 8,
         "x": 13,
-        "y": 14
+        "y": 13
       },
       "id": 44,
       "options": {
@@ -883,7 +755,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "select\r\n    event_ts as \"Time\",\r\n    symbol as \"Instrument\",\r\n    event_type as \"Event\",\r\n    round(price_change_pct, 2) as \"Change\",\r\n    case\r\n        when symbol = 'EUR/USD' then to_char(prev_price::numeric, 'FM9999999990.0000')\r\n        else to_char(prev_price::numeric, 'FM9999999990.00')\r\n    end as \"Prev Price\",\r\n    case\r\n        when symbol = 'EUR/USD' then to_char(current_price::numeric, 'FM9999999990.0000')\r\n        else to_char(current_price::numeric, 'FM9999999990.00')\r\n    end as \"Current Price\"\r\nfrom analytics.mart_price_events\r\norder by event_ts desc\r\nlimit 100;",
+          "rawSql": "select\r\n    to_char(event_ts, 'YYYY-Mon-DD') as \"Date\",\r\n    to_char(event_ts, 'HH24:MI:SS') as \"Time\",\r\n    symbol as \"Instrument\",\r\n    event_type as \"Event\",\r\n    round(price_change_pct, 2) as \"Change\",\r\n    case\r\n        when symbol = 'EUR/USD' then to_char(prev_price::numeric, 'FM9999999990.0000')\r\n        else to_char(prev_price::numeric, 'FM9999999990.00')\r\n    end as \"Prev Price\",\r\n    case\r\n        when symbol = 'EUR/USD' then to_char(current_price::numeric, 'FM9999999990.0000')\r\n        else to_char(current_price::numeric, 'FM9999999990.00')\r\n    end as \"Current Price\"\r\nfrom analytics.mart_price_events\r\norder by event_ts desc\r\nlimit 100;",
           "refId": "A",
           "sql": {
             "columns": [
