@@ -150,7 +150,7 @@ make restore FILE=backup_YYYYMMDD_HHMM.dump  # Restore from dump
 - **Idempotent inserts** — `ON CONFLICT (event_id) DO NOTHING` prevents duplicates
 - **Dead Letter Queue** — malformed Kafka records go to `monitoring.dead_letter_events`
 - **Checkpoint-based offsets** — Spark manages Kafka offsets via checkpoint directory
-- **FX weekend gating** — XAU/USD and EUR/USD not published Fri 22:00 – Sun 22:00 UTC (BTC is 24/7)
+- **FX weekend gating** — XAU/USD and EUR/USD not published Fri 22:00 – Sun 21:59:59 UTC (BTC is 24/7)
 - **5 database roles** — least-privilege access (spark_writer, dbt_runner, grafana_read, producer_writer, backup_user)
 - **Price bounds validation** — XAU: $500–$15,000, BTC: $100–$1M, EUR/USD: $0.50–$2.00
 - **Deterministic event IDs** — UUID5 based on commodity + timestamp
@@ -207,4 +207,4 @@ streaming_system/
 
 ## License
 
-Master's thesis project — not licensed for production use.
+MIT License — see [LICENSE](LICENSE) for details.

@@ -4,7 +4,7 @@ and publishes them to a Kafka topic as JSON events.
 
 Key features:
 - Polls 3 instruments (BTC/USD, XAU/USD, EUR/USD) every 6 minutes
-- FX weekend gating: skips XAU and EUR from Fri 22:00 to Sun 22:00 UTC
+- FX weekend gating: skips XAU and EUR from Fri 22:00 to Sun 21:59:59 UTC
 - Pre-publish price bounds validation (defense-in-depth with Spark)
 - Deterministic event IDs (UUID5) to prevent semantic duplicates
 - Exponential backoff with rate-limit handling (HTTP 429)
