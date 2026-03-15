@@ -29,7 +29,7 @@ Near real-time analytics system for commodity prices (Gold/XAU, Bitcoin/BTC, EUR
 ### API Key
 Register for a free API key at [twelvedata.com](https://twelvedata.com/) (8 requests/minute on free tier is sufficient).
 
-## Quick Start (Fresh Machine)
+## Quick Start
 
 ### 1. Clone the repository
 ```bash
