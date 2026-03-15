@@ -1,6 +1,8 @@
-# Real-Time Commodity Price Streaming System
+# Near Real-Time Commodity Price Streaming System
 
-Near real-time analytics system for commodity prices (Gold/XAU, Bitcoin/BTC, EUR/USD). Fetches prices from Twelve Data API, streams through Kafka, processes with Spark Structured Streaming into PostgreSQL, transforms with dbt, and visualizes in Grafana.
+Near real-time analytics system for commodity prices (XAU/USD, BTC/USD, EUR/USD).
+
+Fetches prices from Twelve Data API, streams through Kafka, processes with Spark Structured Streaming into PostgreSQL, transforms with dbt, and visualizes in Grafana.
 
 ## Architecture
 
@@ -33,8 +35,8 @@ Register for a free API key at [twelvedata.com](https://twelvedata.com/) (8 requ
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/<your-username>/streaming_system.git
-cd streaming_system
+git clone https://github.com/hubert99x/streaming-commodity-analytics.git
+cd streaming-commodity-analytics
 ```
 
 ### 2. Create environment file
@@ -47,7 +49,7 @@ Edit `.env` and set at minimum:
 TD_API_KEY=your_twelvedata_api_key_here
 ```
 
-All other variables have working defaults for local development.
+All other variables have working defaults for local development, but review `GF_SECURITY_ADMIN_PASSWORD` and database passwords before use.
 
 ### 3. Start the system
 ```bash
@@ -61,12 +63,12 @@ This starts all core services + operational services (backup, retention, kafka-l
 make health
 ```
 
-All services should show `healthy` within 2-3 minutes.
+All services should show `healthy` within ~1 minute.
 
 ### 5. Open Grafana
 Navigate to [http://localhost:3000](http://localhost:3000)
-- Username: `admin` (or value from `.env`)
-- Password: `admin` (or value from `.env`)
+- Username: value of `GF_SECURITY_ADMIN_USER` from `.env` (default: `admin`)
+- Password: value of `GF_SECURITY_ADMIN_PASSWORD` from `.env`
 
 Three dashboards are auto-provisioned:
 - **Market Overview** — live prices, pipeline health, API metrics
@@ -97,7 +99,8 @@ make dbt-deps          # Install dbt packages
 make dbt-debug         # Validate dbt profile and connection
 ```
 
-### Testing & Linting
+### Testing & Linting (local)
+These run automatically in CI on push/PR (see [CI/CD](#cicd)), but can also be run locally:
 ```bash
 pytest -q              # Run unit tests (35+ tests)
 ruff check producer tests ops spark  # Lint Python code
@@ -185,7 +188,7 @@ All alerts evaluate every 30s and require the condition to persist for 2 minutes
 ## Key Design Decisions
 
 - **Idempotent inserts** — `ON CONFLICT (event_id) DO NOTHING` prevents duplicates
-- **Dead Letter Queue** — malformed Kafka records go to `monitoring.dead_letter_events`
+- **Dead Letter Queue (DLQ)** — malformed or invalid Kafka records are redirected to `monitoring.dead_letter_events` instead of being dropped, enabling post-mortem analysis
 - **Checkpoint-based offsets** — Spark manages Kafka offsets via checkpoint directory
 - **FX weekend gating** — XAU/USD and EUR/USD not published Fri 22:00 – Sun 21:59:59 UTC (BTC is 24/7)
 - **5 database roles** — least-privilege access (spark_writer, dbt_runner, grafana_read, producer_writer, backup_user)
@@ -211,7 +214,7 @@ All alerts evaluate every 30s and require the condition to persist for 2 minutes
 ## Project Structure
 
 ```
-streaming_system/
+streaming-commodity-analytics/
 ├── producer/              # Python API producer
 ├── spark/                 # Spark Structured Streaming job
 ├── dbt/                   # dbt models (staging + marts)
@@ -226,34 +229,12 @@ streaming_system/
 │   └── provisioning/      #   Datasource, dashboard, alerting config
 ├── tests/                 #   Unit tests (pytest)
 ├── docs/                  #   Architecture diagrams, technical docs
+├── backups/               #   pg_dump archives (created at runtime)
 ├── .github/workflows/     #   CI pipelines
 ├── docker-compose.yml     #   All service definitions
 ├── Makefile               #   Common commands
 └── .env.example           #   Environment variable template
 ```
-
-## Spark Checkpoints
-
-Spark uses a checkpoint directory (`spark_checkpoints` Docker volume) to track Kafka offsets and streaming state. This ensures exactly-once processing across container restarts.
-
-### When NOT to clear checkpoints
-- Changing dbt models or SQL
-- Changing Grafana dashboards or alerts
-- Changing retention policy or producer logic (without schema change)
-- Restarting containers
-
-### When to clear checkpoints
-- Changing the JSON schema produced to Kafka (e.g. adding/removing fields)
-- Changing the Spark `StructType` schema definition in `stream_to_postgres.py`
-- Changing the output columns written to PostgreSQL
-
-### How to clear checkpoints
-```bash
-make down
-docker volume rm streaming_system_spark_checkpoints
-make real
-```
-Spark will re-read from the earliest available Kafka offset and reprocess. Idempotent inserts (`ON CONFLICT DO NOTHING`) prevent duplicates.
 
 ## Troubleshooting
 
@@ -272,9 +253,9 @@ Spark will re-read from the earliest available Kafka offset and reprocess. Idemp
 docker compose restart spark-stream
 ```
 
-**View logs for a specific service:**
+**View logs for specific services:**
 ```bash
-docker compose logs -f --tail=100 producer
+docker compose logs -f --tail=200 producer spark-stream postgres
 ```
 
 **Reset Kafka topic** (delete all messages and start fresh):
@@ -316,7 +297,7 @@ docker compose exec kafka kafka-topics \
 
 ### Disaster Recovery
 
-**List available backups:**
+**List available backups** (stored in `./backups/` on host, mounted as `/backups/` in container):
 ```bash
 docker compose exec postgres sh -lc 'ls -1t /backups/*.dump | head -n 5'
 ```
@@ -343,7 +324,7 @@ make reset-restore FILE=backup_YYYYMMDD_HHMM.dump
 
 ### DLQ Investigation
 
-When DLQ Events > 0 in Grafana, check what's failing:
+When DLQ Events > 0 in Grafana, connect to PostgreSQL (see [Diagnostics](#diagnostics)) and check what's failing:
 ```sql
 SELECT error_reason, count(*) AS n
 FROM monitoring.dead_letter_events
@@ -359,12 +340,36 @@ make dev                    # starts dev profile (includes pgAdmin)
 ```
 Open [http://localhost:5050](http://localhost:5050), login with credentials from `.env`.
 
-### Security Scanning
+### Spark Checkpoints
 
+Spark uses a checkpoint directory (`spark_checkpoints` Docker volume) to track Kafka offsets and streaming state. This ensures exactly-once processing across container restarts.
+
+**When NOT to clear checkpoints:**
+- Changing dbt models or SQL
+- Changing Grafana dashboards or alerts
+- Changing retention policy or producer logic (without schema change)
+- Restarting containers
+
+**When to clear checkpoints:**
+- Changing the JSON schema produced to Kafka (e.g. adding/removing fields)
+- Changing the Spark `StructType` schema definition in `stream_to_postgres.py`
+- Changing the output columns written to PostgreSQL
+
+**How to clear checkpoints:**
+```bash
+make down
+docker volume rm streaming_system_spark_checkpoints  # remove checkpoint volume
+make real
+```
+Spark will re-read from the earliest available Kafka offset and reprocess. Idempotent inserts (`ON CONFLICT DO NOTHING`) prevent duplicates.
+
+### Security Scanning (manual)
+
+Trivy scans run automatically in CI on push/PR and weekly (see [CI/CD](#cicd)). To scan locally:
 ```bash
 trivy image --scanners vuln --severity CRITICAL,HIGH --ignore-unfixed streaming_system-producer
 ```
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
