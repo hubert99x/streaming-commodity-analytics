@@ -39,5 +39,10 @@ dbt/dbt_packages/
 tmp/
 *.tmp
 
+# Thesis
+*.docx
+*.doc
+MAGISTERKA_KOPIA.txt
+
 # Others
 CLAUDE.md
