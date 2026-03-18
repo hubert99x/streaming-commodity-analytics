@@ -394,7 +394,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 
 ## 6. Monitoring & Alerting
 
-### Alert Rules (8 total, 30-second evaluation)
+### Alert Rules (9 total, 30-second evaluation)
 
 | Alert | Condition | Severity | Fires After |
 |-------|-----------|----------|-------------|
@@ -403,6 +403,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 | API Errors ≥1 (18m) | `errors_18m >= 1` | WARNING | 2 min |
 | API Errors ≥3 (18m) | `errors_18m >= 3` | CRITICAL | 2 min |
 | DLQ Events (15m) | DLQ count > 0 in 15m window | WARNING | 2 min |
+| dbt Test Failures (35m) | `status = 'FAIL'` in `dbt_test_runs` (35m window) | WARNING | 2 min |
 | Kafka Lag >50 | `total_lag > 50` | WARNING | 2 min |
 | Kafka Lag >500 | `total_lag > 500` | CRITICAL | 2 min |
 | Kafka Partition Lag >30 | `max_partition_lag > 30` | WARNING | 2 min |
@@ -419,7 +420,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 
 ### Monitoring Gaps
 
-1. ~~**No dbt health alert.**~~ **Partially addressed.** dbt source freshness SLA (warn 10m, error 20m) detects stale `raw_prices` input. However, there is still no alert for dbt build *failures* — if dbt crashes but `raw_prices` keeps flowing, no alert fires.
+1. ~~**No dbt health alert.**~~ **Addressed.** dbt source freshness SLA (warn 10m, error 20m) detects stale `raw_prices` input. Alert rule `dbt_test_failures_35m` fires when any dbt test run reports `status=FAIL` within a 35-minute window, covering both test assertion failures and execution errors.
 2. ~~**No dbt build duration tracking.**~~ **Addressed.** Build duration (`duration_ms`) is now logged to stdout for each run (OK, FAILED, TIMEOUT).
 3. ~~**No per-partition Kafka lag.**~~ **Addressed.** Alert rule `kafka_partition_lag_warn_gt_30` fires when `max_partition_lag > 30` for 2 minutes, detecting stuck partitions masked by healthy total lag.
 4. **No Spark streaming metrics.** Microbatch duration, watermark lag, and task counts are not exposed. *(Partially mitigated: batch log now includes `inserted`, `conflict_skipped`, `dlq_write_failed`, `ms` per batch.)*

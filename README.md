@@ -170,7 +170,7 @@ All three dashboards are auto-provisioned from JSON files in `grafana/dashboards
 - dbt: test freshness (every 30min), pass rate, test runs table
 - Backup freshness (every 2h), Time Since Last Stream Write
 
-### Alert Rules (8 rules)
+### Alert Rules (9 rules)
 
 All alerts evaluate every 30s and require the condition to persist for 2 minutes before firing. Alerts are sent to a Flask webhook receiver (`alert-receiver:5000`) which logs them to `monitoring.alert_events`.
 
@@ -181,6 +181,7 @@ All alerts evaluate every 30s and require the condition to persist for 2 minutes
 | API errors (18m) >= 1 | warning | Any API error in last 3 poll cycles |
 | API errors (18m) >= 3 | critical | Sustained API failures |
 | DLQ events (15m) > 0 | warning | Malformed records detected |
+| dbt test failures (35m) | warning | Any dbt test run with `status=FAIL` in last 35 minutes |
 | Kafka lag > 50 | warning | Consumer falling behind |
 | Kafka lag > 500 | critical | Severe backlog |
 | Kafka partition lag > 30 | warning | Single stuck partition (may be masked by healthy total lag) |

@@ -378,6 +378,60 @@ groups:
                   type: query
 
       # ======================================================
+      # WARNING: dbt test failures in last 35 minutes
+      # ======================================================
+      - uid: dbt_test_failures_35m
+        title: "[WARN] dbt test failures (35m)"
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        annotations:
+          summary: "dbt tests failed in the last 35 minutes"
+          description: "Data quality: at least one dbt test run with status=FAIL in the last 35 minutes. Check monitoring.dbt_test_runs for details."
+        labels:
+          severity: warning
+          component: dbt
+        data:
+          - refId: A
+            datasourceUid: postgres
+            relativeTimeRange:
+              from: 2400
+              to: 0
+            model:
+              format: table
+              intervalMs: 1000
+              maxDataPoints: 1
+              rawSql: |
+                SELECT count(*)::bigint AS v
+                FROM monitoring.dbt_test_runs
+                WHERE ts_utc >= now() - interval '35 minutes'
+                  AND status = 'FAIL';
+
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              settings: {}
+
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+                  type: query
+
+      # ======================================================
       # WARNING: Single partition Kafka lag > 30
       # ======================================================
       - uid: kafka_partition_lag_warn_gt_30
