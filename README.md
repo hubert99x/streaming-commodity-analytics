@@ -1,8 +1,10 @@
 # Near Real-Time Commodity Price Streaming System
 
-Near real-time analytics system for commodity prices (XAU/USD, BTC/USD, EUR/USD).
+Traditional batch pipelines delay market change detection by minutes to hours. This system provides near real-time commodity price analytics with a micro-batch streaming architecture, layered reliability, and built-in observability.
 
-Fetches prices from Twelve Data API, streams through Kafka, processes with Spark Structured Streaming into PostgreSQL, transforms with dbt, and visualizes in Grafana.
+Ingests XAU/USD, BTC/USD, and EUR/USD prices every 6 minutes from Twelve Data API, streams through Kafka, processes with Spark Structured Streaming into PostgreSQL, transforms with dbt, and visualizes in Grafana.
+
+The system emphasizes reliability through idempotent processing at every layer, a dead letter queue for invalid records, checkpoint-based fault-tolerant recovery, 9 automated alert rules, and 17+ dbt data quality tests.
 
 ## Architecture
 
@@ -12,189 +14,65 @@ Fetches prices from Twelve Data API, streams through Kafka, processes with Spark
 ### Monitoring & Operations
 ![Monitoring & Operations](docs/monitoring_operations.png)
 
-## Prerequisites
+## Why This Project
 
-### Required Software
-| Software | Version | Installation |
-|----------|---------|-------------|
-| Docker | 24.0+ | [docs.docker.com/get-docker](https://docs.docker.com/get-docker/) |
-| Docker Compose | v2.0+ (plugin) | Included with Docker Desktop |
-| Git | 2.30+ | [git-scm.com](https://git-scm.com/) |
-| Make | any | Pre-installed on Linux/macOS; on Windows use WSL2 |
+This is a portfolio / master's thesis project that demonstrates end-to-end data engineering beyond a simple ETL script. It covers: event-driven ingestion, micro-batch stream processing, layered idempotency, dead letter queues, data quality testing, observability with alerting, container hardening, and CI/CD — all wired together as a single `make real` deployment.
 
-### System Requirements
-- 4+ CPU cores
-- 6 GB+ available RAM (services use ~4.5 GB total)
-- 10 GB free disk space
-- Internet connection (for Twelve Data API)
+## Key Design Decisions
 
-### API Key
-Register for a free API key at [twelvedata.com](https://twelvedata.com/) (8 requests/minute on free tier is sufficient).
-
-## Quick Start
-
-### 1. Clone the repository
-```bash
-git clone https://github.com/hubert99x/streaming-commodity-analytics.git
-cd streaming-commodity-analytics
-```
-
-### 2. Create environment file
-```bash
-cp .env.example .env
-```
-
-Edit `.env` and set at minimum:
-```
-TD_API_KEY=your_twelvedata_api_key_here
-```
-
-All other variables have working defaults for local development, but review `GF_SECURITY_ADMIN_PASSWORD` and database passwords before use.
-
-### 3. Start the system
-```bash
-make real
-```
-
-This starts all core services + operational services (backup, retention, kafka-lag monitoring).
-
-### 4. Verify everything is running
-```bash
-make health
-```
-
-All services should show `healthy` within ~1 minute.
-
-### 5. Open Grafana
-Navigate to [http://localhost:3000](http://localhost:3000)
-- Username: value of `GF_SECURITY_ADMIN_USER` from `.env` (default: `admin`)
-- Password: value of `GF_SECURITY_ADMIN_PASSWORD` from `.env`
-
-Three dashboards are auto-provisioned:
-- **Market Overview** — live prices, pipeline health, API metrics
-- **Market Analysis** — hourly volatility, price events
-- **Pipeline & Data Quality** — DLQ, dbt tests, backup status
-
-Data will start appearing after ~6 minutes (first API poll + Spark processing).
-
-## Commands
-
-### Running the System
-```bash
-make real              # Production: core + ops services
-make dev               # Development: adds pgAdmin (5050), Kafka UI (8080)
-make down              # Stop all services
-make downv             # Stop + remove volumes (DESTROYS Postgres data!)
-make health            # Show service health
-make logs              # Stream all logs
-make logs-core         # Stream core service logs only
-make restart           # Restart all services
-make ps                # Show service status
-```
-
-### dbt
-```bash
-make dbt-build         # Run dbt build (models + tests) in container
-make dbt-deps          # Install dbt packages
-make dbt-debug         # Validate dbt profile and connection
-```
-
-### Testing & Linting (local)
-These run automatically in CI on push/PR (see [CI/CD](#cicd)), but can also be run locally:
-```bash
-pytest -q              # Run unit tests (35+ tests)
-ruff check producer tests ops spark  # Lint Python code
-```
-
-### Backup & Restore
-```bash
-make backup                                  # One-off pg_dump
-make restore FILE=backup_YYYYMMDD_HHMM.dump  # Restore from dump
-```
+| Decision | Why |
+|----------|-----|
+| **Idempotent inserts** (`ON CONFLICT DO NOTHING`) | Deterministic event IDs (UUID5) mean the same event always produces the same ID — enables safe replay after crashes without duplicates |
+| **Dead Letter Queue** | Invalid records land in `monitoring.dead_letter_events` with full payload — nothing is silently dropped |
+| **Checkpoint-based offsets** | Spark manages Kafka offsets via checkpoint dir, not consumer groups — avoids offset conflicts on restart |
+| **Persistent staging + advisory lock** | Batch data lands in a staging table, then merges into target under `pg_advisory_lock` — serializes concurrent writes without table-level locks |
+| **Multi-layer validation** | Price bounds checked at producer (pre-publish) AND Spark (post-consume) — defense in depth |
+| **FX weekend gating** | XAU/USD, EUR/USD skipped Fri 22:00 – Sun 21:59 UTC; BTC runs 24/7 — prevents stale quotes from polluting analytics |
+| **5 database roles** | Each service gets only the permissions it needs — a compromised component cannot escalate beyond its own schema |
+| **Incremental dbt models** | Marts use lookback windows (30m–2h) — constant runtime regardless of table size |
+| **Per-commodity event thresholds** | BTC extreme = 1.5%, XAU = 0.6%, EUR = 0.25% — reflects actual market volatility profiles |
 
 ## Services
 
-| Service | Role | Port | Profile |
-|---------|------|------|---------|
-| **postgres** | Primary database (PostgreSQL 16.6) | 5432 | core |
-| **kafka** | Message broker (KRaft mode, 3 partitions) | — | core |
-| **producer** | Fetches prices from Twelve Data API every 6 min | — | core |
-| **spark-stream** | Kafka → PostgreSQL via Structured Streaming (trigger 300s) | — | core |
-| **dbt-scheduler** | Runs `dbt run` every 6m, `dbt test` every 30m | — | core |
-| **grafana** | 3 dashboards, 8 alert rules | 3000 | core |
-| **alert-receiver** | Flask webhook listener for Grafana alerts | 5000 | core |
-| **kafka-lag** | Monitors Spark consumer lag | — | ops |
-| **backup-cron** | pg_dump every 2h, keeps last 360 backups | — | ops |
-| **retention** | Cleans old data (90-day TTL) daily | — | ops |
-| **pgadmin** | Database admin UI | 5050 | dev |
-| **kafka-ui** | Kafka topic/consumer browser | 8080 | dev |
+| Service | Role | Profile |
+|---------|------|---------|
+| **postgres** | PostgreSQL 16.6 — primary database | core |
+| **kafka** | KRaft mode, 3 partitions | core |
+| **producer** | Fetches prices from Twelve Data API every 6 min | core |
+| **spark-stream** | Kafka → PostgreSQL via Structured Streaming (trigger 300s) | core |
+| **dbt-scheduler** | `dbt run` every 6m, `dbt test` every 30m, retention every 24h | core |
+| **grafana** | 3 dashboards, 9 alert rules | core |
+| **alert-receiver** | Flask webhook for Grafana alerts → PostgreSQL | core |
+| **kafka-lag** | Monitors Spark consumer lag | ops |
+| **backup-cron** | pg_dump every 2h, keeps last 360 backups | ops |
+| **pgadmin** | Database admin UI (port 5050) | dev |
+| **kafka-ui** | Kafka topic browser (port 8080) | dev |
 
-## Database Schemas
+## Database & Transformations
 
-| Schema | Purpose |
-|--------|---------|
-| **public** | `raw_prices` table — Spark sink with idempotent inserts |
-| **analytics** | dbt models — staging views + mart tables (latest prices, minute aggregates, price events, hourly volatility) |
-| **monitoring** | Operational metrics — API calls, Kafka lag, DLQ events, alert events, dbt test runs, backup log |
-| **ingest** | Spark staging tables (temporary, per-batch) |
+**4 schemas:** `public` (Spark sink), `analytics` (dbt models), `monitoring` (operational metrics), `ingest` (persistent Spark staging tables, truncated between batches)
 
-## dbt Models
+**dbt models:**
 
 | Model | Type | Description |
 |-------|------|-------------|
 | `stg_raw_prices` | view | Type casting, timezone handling |
 | `mart_latest_prices` | table | Latest price per instrument |
-| `mart_minute_last_price` | incremental | Minute-level aggregated statistics |
+| `mart_minute_last_price` | incremental | Minute-level OHLC statistics |
 | `mart_price_events` | incremental | Significant price changes with per-commodity thresholds |
 | `mart_price_volatility_1h` | incremental | Hourly volatility metrics |
 
-## Grafana Dashboards & Alerts
+## Monitoring
 
-### Dashboards
+**3 Grafana dashboards** (auto-provisioned): Market Overview, Market Analysis, Pipeline & Data Quality
 
-All three dashboards are auto-provisioned from JSON files in `grafana/dashboards/`.
+**9 alert rules** covering: stale ingest, API errors, DLQ events, dbt test failures, Kafka lag (total + per-partition), BTC heartbeat. All alerts route through webhook receiver → `monitoring.alert_events`.
 
-**Market Overview** — real-time operational view of the entire pipeline:
-- Live price charts (XAU/USD, BTC/USD, EUR/USD)
-- Pipeline Health: API Idle Time, Events per Cycle, Kafka Consumer Lag, Ingest Idle Time
-- API Metrics: calls count, errors, P95 latency, success rate
+**7 monitoring tables:** `api_calls`, `dead_letter_events`, `kafka_lag`, `alert_events`, `dbt_test_runs`, `backup_log` + 3 summary views.
 
-**Market Analysis** — analytical view of price behavior:
-- Price Statistics table (latest price, min/max, range, std dev per instrument)
-- Hourly Price Change (%) time series
-- Recent Price Events table (MEDIUM / LARGE / EXTREME moves)
+This ensures that pipeline failures (ingestion gaps, data quality regressions, consumer lag) are detected automatically and logged for post-mortem analysis.
 
-**Pipeline & Data Quality** — monitoring and diagnostics:
-- Pipeline Status & Latency, Throughput per cycle (bar chart)
-- DLQ: events count (24h), DLQ Rate, DLQ Log table, DLQ Events per Day (7d)
-- dbt: test freshness (every 30min), pass rate, test runs table
-- Backup freshness (every 2h), Time Since Last Stream Write
-
-### Alert Rules (9 rules)
-
-All alerts evaluate every 30s and require the condition to persist for 2 minutes before firing. Alerts are sent to a Flask webhook receiver (`alert-receiver:5000`) which logs them to `monitoring.alert_events`.
-
-| Rule | Severity | Condition |
-|------|----------|-----------|
-| Time Since Last Ingest > 7m | critical | No new rows in `raw_prices` for 420s |
-| BTC events (15m) < 2 | warning | BTC is 24/7 — fewer than 2 events means pipeline stall |
-| API errors (18m) >= 1 | warning | Any API error in last 3 poll cycles |
-| API errors (18m) >= 3 | critical | Sustained API failures |
-| DLQ events (15m) > 0 | warning | Malformed records detected |
-| dbt test failures (35m) | warning | Any dbt test run with `status=FAIL` in last 35 minutes |
-| Kafka lag > 50 | warning | Consumer falling behind |
-| Kafka lag > 500 | critical | Severe backlog |
-| Kafka partition lag > 30 | warning | Single stuck partition (may be masked by healthy total lag) |
-
-## Key Design Decisions
-
-- **Idempotent inserts** — `ON CONFLICT (event_id) DO NOTHING` prevents duplicates
-- **Dead Letter Queue (DLQ)** — malformed or invalid Kafka records are redirected to `monitoring.dead_letter_events` instead of being dropped, enabling post-mortem analysis
-- **Checkpoint-based offsets** — Spark manages Kafka offsets via checkpoint directory
-- **FX weekend gating** — XAU/USD and EUR/USD not published Fri 22:00 – Sun 21:59:59 UTC (BTC is 24/7)
-- **5 database roles** — least-privilege access (spark_writer, dbt_runner, grafana_read, producer_writer, backup_user)
-- **Price bounds validation** — XAU: $500–$15,000, BTC: $100–$1M, EUR/USD: $0.50–$2.00
-- **Deterministic event IDs** — UUID5 based on commodity + timestamp
+See [Operations Guide](docs/OPERATIONS.md#alert-rules-9-rules) for full alert rule details.
 
 ## CI/CD
 
@@ -206,11 +84,52 @@ All alerts evaluate every 30s and require the condition to persist for 2 minutes
 
 ## Security
 
-- All container ports bound to `127.0.0.1` (localhost only)
-- Containers run with `cap_drop: [ALL]` and `no-new-privileges`
-- Read-only volumes for configurations
-- Pre-commit hooks: gitleaks (secret detection) + ruff (linting)
-- CVE exceptions tracked with quarterly review dates in `.trivyignore`
+The project applies several production-inspired hardening practices (container capability drop, non-root users, read-only rootfs, RBAC with 5 database roles, pre-commit secret scanning, SHA-pinned CI actions), but it is designed as a single-host educational and portfolio system rather than a fully production-grade distributed deployment.
+
+See [Security](docs/SECURITY.md) for full details.
+
+## Quick Start
+
+### Prerequisites
+
+| Software | Version |
+|----------|---------|
+| Docker | 24.0+ |
+| Docker Compose | v2.0+ (plugin) |
+| Git | 2.30+ |
+| Make | any |
+
+**System:** 4+ CPU cores, 6 GB+ RAM, 10 GB disk. **API key:** register at [twelvedata.com](https://twelvedata.com/) (free tier is sufficient).
+
+### Setup
+
+```bash
+# 1. Clone
+git clone https://github.com/hubert99x/streaming-commodity-analytics.git
+cd streaming-commodity-analytics
+
+# 2. Configure
+cp .env.example .env
+# Edit .env — set TD_API_KEY at minimum, review passwords
+
+# 3. Start
+make real
+
+# 4. Verify
+make health          # all services should show "healthy" within ~1 min
+
+# 5. Open Grafana at http://localhost:3000
+```
+
+### What to Expect After Startup
+
+- Producer polls Twelve Data API every **6 minutes**
+- Spark processes micro-batches every **5 minutes** (trigger interval)
+- dbt transforms run every **6 minutes**, tests every **30 minutes**
+- First data appears in Grafana after **~6–12 minutes** (first poll + Spark trigger)
+- On weekends, only BTC/USD updates continuously — XAU/USD and EUR/USD are gated (Fri 22:00 – Sun 21:59 UTC)
+- You can verify ingestion directly in PostgreSQL (`public.raw_prices`) — see [Troubleshooting](docs/TROUBLESHOOTING.md#diagnostics)
+- Kafka topic activity can be inspected via Kafka UI (`make dev`, port 8080)
 
 ## Project Structure
 
@@ -223,153 +142,27 @@ streaming-commodity-analytics/
 │   ├── alert-receiver/    #   Flask webhook listener
 │   ├── dbt-scheduler/     #   Automated dbt runs
 │   ├── kafka-lag/         #   Consumer lag monitor
-│   ├── retention-image/   #   Data retention cleanup
 │   └── sql/               #   Init schema, grants, retention SQL
 ├── grafana/
 │   ├── dashboards/        #   3 provisioned dashboard JSONs
 │   └── provisioning/      #   Datasource, dashboard, alerting config
 ├── tests/                 #   Unit tests (pytest)
 ├── docs/                  #   Architecture diagrams, technical docs
-├── backups/               #   pg_dump archives (created at runtime)
 ├── .github/workflows/     #   CI pipelines
 ├── docker-compose.yml     #   All service definitions
 ├── Makefile               #   Common commands
 └── .env.example           #   Environment variable template
 ```
 
-## Troubleshooting
+## Documentation
 
-| Problem | Cause | Solution |
-|---------|-------|---------|
-| No data in Grafana | System needs ~6 min for first data | Wait for first poll cycle + Spark trigger |
-| Pipeline Status = WARNING | Weekend with 1 instrument (BTC only) | Normal — XAU/EUR are gated on weekends |
-| dbt test FAIL | System restart caused `ingest_ts - event_ts > 24h` | Will auto-resolve; see `_staging.yml` tolerance |
-| Spark crash-loop | Python version compatibility | Check `spark/validation.py` uses `typing.Dict` not `dict[]` |
-| High Pipeline Latency | Producer (360s) + Spark (300s) desync | Normal — max latency ~660s on weekends |
-
-### Common Operations
-
-**Restart a single service:**
-```bash
-docker compose restart spark-stream
-```
-
-**View logs for specific services:**
-```bash
-docker compose logs -f --tail=200 producer spark-stream postgres
-```
-
-**Reset Kafka topic** (delete all messages and start fresh):
-```bash
-make down
-docker volume rm streaming_system_kafka_data
-docker volume rm streaming_system_spark_checkpoints
-make real
-```
-
-**Force dbt rebuild** (full refresh, not incremental):
-```bash
-docker compose exec dbt sh -lc 'cd /dbt && dbt run --full-refresh'
-```
-
-### Diagnostics
-
-**Connect to PostgreSQL shell:**
-```bash
-docker compose exec postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
-```
-
-**Check if Spark is writing data:**
-```bash
-docker compose exec postgres sh -lc \
-  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
-   SELECT count(*) AS total_rows,
-          max(event_ts) AS newest_event,
-          max(ingest_ts) AS newest_ingest
-   FROM public.raw_prices;"'
-```
-
-**Check if Kafka topic exists and has data:**
-```bash
-docker compose exec kafka kafka-topics \
-  --bootstrap-server kafka:29092 \
-  --describe --topic commodity_prices
-```
-
-### Disaster Recovery
-
-**List available backups** (stored in `./backups/` on host, mounted as `/backups/` in container):
-```bash
-docker compose exec postgres sh -lc 'ls -1t /backups/*.dump | head -n 5'
-```
-
-**Restore from backup** (simplest approach):
-```bash
-make restore FILE=backup_YYYYMMDD_HHMM.dump
-docker compose restart spark-stream grafana dbt-scheduler
-```
-
-If restore fails with "cannot drop schema" errors, drop schemas first:
-```bash
-docker compose exec postgres sh -lc \
-  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
-   DROP SCHEMA IF EXISTS analytics CASCADE;
-   DROP SCHEMA IF EXISTS monitoring CASCADE;"'
-make restore FILE=backup_YYYYMMDD_HHMM.dump
-```
-
-**Full reset + restore** (nuclear option):
-```bash
-make reset-restore FILE=backup_YYYYMMDD_HHMM.dump
-```
-
-### DLQ Investigation
-
-When DLQ Events > 0 in Grafana, connect to PostgreSQL (see [Diagnostics](#diagnostics)) and check what's failing:
-```sql
-SELECT error_reason, count(*) AS n
-FROM monitoring.dead_letter_events
-WHERE ts_utc >= now() - interval '24 hours'
-GROUP BY 1
-ORDER BY n DESC;
-```
-
-### pgAdmin Access
-
-```bash
-make dev                    # starts dev profile (includes pgAdmin)
-```
-Open [http://localhost:5050](http://localhost:5050), login with credentials from `.env`.
-
-### Spark Checkpoints
-
-Spark uses a checkpoint directory (`spark_checkpoints` Docker volume) to track Kafka offsets and streaming state. This ensures exactly-once processing across container restarts.
-
-**When NOT to clear checkpoints:**
-- Changing dbt models or SQL
-- Changing Grafana dashboards or alerts
-- Changing retention policy or producer logic (without schema change)
-- Restarting containers
-
-**When to clear checkpoints:**
-- Changing the JSON schema produced to Kafka (e.g. adding/removing fields)
-- Changing the Spark `StructType` schema definition in `stream_to_postgres.py`
-- Changing the output columns written to PostgreSQL
-
-**How to clear checkpoints:**
-```bash
-make down
-docker volume rm streaming_system_spark_checkpoints  # remove checkpoint volume
-make real
-```
-Spark will re-read from the earliest available Kafka offset and reprocess. Idempotent inserts (`ON CONFLICT DO NOTHING`) prevent duplicates.
-
-### Security Scanning (manual)
-
-Trivy scans run automatically in CI on push/PR and weekly (see [CI/CD](#cicd)). To scan locally:
-```bash
-trivy image --scanners vuln --severity CRITICAL,HIGH --ignore-unfixed streaming_system-producer
-```
+| Document | Description |
+|----------|-------------|
+| [Operations Guide](docs/OPERATIONS.md) | Commands, dashboards, alert rules, checkpoints, volume management |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues, diagnostics, DLQ investigation |
+| [Security](docs/SECURITY.md) | Container hardening, RBAC, CI scanning |
+| [Disaster Recovery](docs/DISASTER_RECOVERY.md) | Backup/restore procedures, volume management |
+| [Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md) | Deep-dive architecture analysis, weaknesses, recommendations |
 
 ## License
 

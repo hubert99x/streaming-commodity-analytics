@@ -308,7 +308,7 @@ def main():
     # Ensure topic exists with correct partition count
     _ensure_topic(TOPIC, num_partitions=3)
 
-    # Kafka producer with exactly-once semantics:
+    # Kafka producer with idempotent delivery:
     # - enable.idempotence: prevents duplicate messages on network retries
     # - acks=all: waits for all replicas to acknowledge (strongest durability)
     # - linger.ms=0: send immediately (low-volume, latency-sensitive)

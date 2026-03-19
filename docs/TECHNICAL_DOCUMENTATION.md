@@ -1,6 +1,6 @@
 # Technical Documentation — Commodity Price Streaming System
 
-> Critical analysis. Last updated: 2026-03-14 (post-optimization revision).
+> Critical analysis. Last updated: 2026-03-19 (terminology and consistency revision).
 
 ---
 
@@ -138,7 +138,7 @@ All external ports bind to `127.0.0.1` (Grafana:3000, pgAdmin:5050, Kafka UI:808
                     │
                     ▼
  ┌─────────────────────────────────────────────┐
- │        GRAFANA (3 dashboards, 8 alerts)      │
+ │        GRAFANA (3 dashboards, 9 alerts)      │
  │  market_overview, market_analysis,           │
  │  pipeline_&_data_quality                     │
  │                                              │
@@ -146,16 +146,16 @@ All external ports bind to `127.0.0.1` (Grafana:3000, pgAdmin:5050, Kafka UI:808
  └─────────────────────────────────────────────-┘
 ```
 
-### Exactly-Once Delivery Analysis
+### Effectively-Once Delivery Analysis
 
-The pipeline achieves **effective exactly-once** semantics through layered idempotency:
+The pipeline achieves **effectively-once** semantics through layered idempotency:
 
 | Layer | Mechanism | Guarantee |
 |-------|-----------|-----------|
 | Producer → Kafka | `enable.idempotence=True`, `acks=all`, deterministic UUID5 event_id | At-least-once (Kafka deduplicates producer retries) |
 | Kafka → Spark | Checkpoint-based offset tracking (not consumer groups) | At-least-once (replays from checkpoint on crash) |
 | Spark → Postgres | `ON CONFLICT (event_id) DO NOTHING` | At-most-once per event_id (duplicates silently dropped) |
-| **Combined** | | **Effectively exactly-once at Postgres level** |
+| **Combined** | | **Effectively-once at Postgres level** (idempotent, not transactional exactly-once) |
 
 **Observability:** The Spark streaming job tracks ON CONFLICT discards via `executeUpdate()` row counts. Each batch logs `conflict_skipped=N`, making it possible to distinguish healthy idempotent replays from data quality problems causing unexpected ID collisions.
 
@@ -604,6 +604,6 @@ The following issues were identified during development and have been resolved:
 
 ### Overall Assessment
 
-The system demonstrates strong architectural foundations: idempotent data flow, role-based access control, checkpoint-based exactly-once semantics, commodity-aware analytics, and comprehensive alert coverage. The design choices are well-reasoned for the stated use case (3 instruments, 6-minute intervals, single-machine deployment).
+The system demonstrates strong architectural foundations: idempotent data flow, role-based access control, checkpoint-based effectively-once semantics, commodity-aware analytics, and comprehensive alert coverage. The design choices are well-reasoned for the stated use case (3 instruments, 6-minute intervals, single-machine deployment).
 
 The P1 items (credentials, TLS) are standard for development environments and would be addressed before any production deployment. The system includes 64 dbt tests, 8 Grafana alert rules, CI pipelines (lint, test, security scanning), and automated operational services (backup, retention, lag monitoring) — providing a robust foundation that exceeds typical thesis requirements.

@@ -446,13 +446,15 @@ if __name__ == "__main__":
     # Start the streaming query with 300-second micro-batch trigger.
     # Trigger interval (300s) is intentionally shorter than producer polling (360s)
     # to ensure data is processed before the next batch arrives, minimizing latency.
-    # Checkpoint directory stores Kafka offsets for exactly-once recovery on restart.
+    # Checkpoint directory stores Kafka offsets for fault-tolerant recovery on restart.
+    # Combined with idempotent inserts (ON CONFLICT DO NOTHING), this provides
+    # effectively-once results in PostgreSQL.
     query = (
         df_with_reason.writeStream
         .foreachBatch(foreach_fn)
         .option("checkpointLocation", CHECKPOINT_DIR)
         .trigger(processingTime="300 seconds")
-        .outputMode("update")
+        .outputMode("append")
         .start()
     )
 
