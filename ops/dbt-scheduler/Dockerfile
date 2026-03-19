@@ -16,7 +16,7 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir --upgrade "deepdiff==8.6.1"
+RUN pip install --no-cache-dir --upgrade "deepdiff==8.6.2"
 
 WORKDIR /dbt
 
