@@ -1,5 +1,5 @@
 # Stage 1: build patched gosu with a newer Go toolchain
-FROM golang:1.25.7-bookworm AS gosu-builder
+FROM golang:1.25.8-bookworm AS gosu-builder
 
 WORKDIR /src
 
