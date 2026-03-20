@@ -18,7 +18,6 @@ from pathlib import Path
 
 DBT_RUN_INTERVAL = int(os.getenv("DBT_RUN_INTERVAL_SEC", "360"))  # 6 minutes
 DBT_TEST_INTERVAL = int(os.getenv("DBT_TEST_INTERVAL_SEC", "1800"))  # 30 minutes
-INGEST_CLEANUP_INTERVAL = int(os.getenv("INGEST_CLEANUP_INTERVAL_SEC", "3600"))  # 1 hour
 RETENTION_INTERVAL = int(os.getenv("RETENTION_INTERVAL_SEC", "86400"))  # 24 hours
 DBT_TARGET = os.getenv("DBT_TARGET", "dev")
 
@@ -117,39 +116,6 @@ def _run_dbt_test_and_log():
         _lock.release()
 
 
-def _cleanup_ingest_tables():
-    """Drop old Spark staging tables, keeping 2000 most recent (automated version of cleanup_ingest_keep_2000.sql)."""
-    try:
-        print(f"[dbt-scheduler] {_now_iso()} starting ingest cleanup...", flush=True)
-        result = subprocess.run(
-            [
-                "psql",
-                "-X",
-                "-h", POSTGRES_HOST,
-                "-p", POSTGRES_PORT,
-                "-U", POSTGRES_USER,
-                "-d", POSTGRES_DB,
-                "-v", "ON_ERROR_STOP=1",
-                "-f", "/ops/sql/cleanup_ingest_keep_2000.sql",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=60,
-            env={**os.environ, "PGPASSWORD": POSTGRES_PASSWORD},
-        )
-        if result.returncode == 0:
-            print(f"[dbt-scheduler] {_now_iso()} ingest cleanup OK", flush=True)
-        else:
-            print(
-                f"[dbt-scheduler] {_now_iso()} ingest cleanup FAILED (exit={result.returncode}): {result.stderr[:200]}",
-                flush=True,
-            )
-    except subprocess.TimeoutExpired:
-        print(f"[dbt-scheduler] {_now_iso()} ingest cleanup TIMEOUT", flush=True)
-    except Exception as e:
-        print(f"[dbt-scheduler] {_now_iso()} ingest cleanup ERROR: {e}", flush=True)
-
-
 def _run_retention():
     """Run retention cleanup using shared retention.sql file."""
     try:
@@ -196,7 +162,6 @@ def main():
     print(
         f"[dbt-scheduler] {_now_iso()} scheduler started "
         f"(build every {DBT_RUN_INTERVAL}s, test every {DBT_TEST_INTERVAL}s, "
-        f"ingest cleanup every {INGEST_CLEANUP_INTERVAL}s, "
         f"retention every {RETENTION_INTERVAL}s)",
         flush=True,
     )
@@ -205,7 +170,6 @@ def main():
     # Initialized to 0.0 so all tasks run immediately on startup.
     last_build = 0.0
     last_test = 0.0
-    last_cleanup = 0.0
     last_retention = 0.0
 
     while _running:
@@ -219,10 +183,6 @@ def main():
         if now - last_test >= DBT_TEST_INTERVAL:
             _run_dbt_test_and_log()
             last_test = time.monotonic()
-
-        if now - last_cleanup >= INGEST_CLEANUP_INTERVAL:
-            _cleanup_ingest_tables()
-            last_cleanup = time.monotonic()
 
         if now - last_retention >= RETENTION_INTERVAL:
             _run_retention()

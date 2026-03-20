@@ -43,6 +43,7 @@ tmp/
 *.docx
 *.doc
 MAGISTERKA_KOPIA.txt
+docs/system-walkthrough.md
 
 # Others
 CLAUDE.md

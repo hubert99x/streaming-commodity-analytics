@@ -41,7 +41,7 @@ This is a portfolio / master's thesis project that demonstrates end-to-end data 
 | **producer** | Fetches prices from Twelve Data API every 6 min | core |
 | **spark-stream** | Kafka → PostgreSQL via Structured Streaming (trigger 300s) | core |
 | **dbt-scheduler** | `dbt run` every 6m, `dbt test` every 30m, retention every 24h | core |
-| **grafana** | 3 dashboards, 9 alert rules | core |
+| **grafana** | 3 dashboards, 11 alert rules | core |
 | **alert-receiver** | Flask webhook for Grafana alerts → PostgreSQL | core |
 | **kafka-lag** | Monitors Spark consumer lag | ops |
 | **backup-cron** | pg_dump every 2h, keeps last 360 backups | ops |
@@ -66,13 +66,13 @@ This is a portfolio / master's thesis project that demonstrates end-to-end data 
 
 **3 Grafana dashboards** (auto-provisioned): Market Overview, Market Analysis, Pipeline & Data Quality
 
-**9 alert rules** covering: stale ingest, API errors, DLQ events, dbt test failures, Kafka lag (total + per-partition), BTC heartbeat. All alerts route through webhook receiver → `monitoring.alert_events`.
+**11 alert rules** covering: stale ingest, API errors, DLQ events, dbt test failures, Kafka lag (total + per-partition), BTC heartbeat, backup freshness, analytics staleness. All alerts route through webhook receiver → `monitoring.alert_events`.
 
 **7 monitoring tables:** `api_calls`, `dead_letter_events`, `kafka_lag`, `alert_events`, `dbt_test_runs`, `backup_log` + 3 summary views.
 
 This ensures that pipeline failures (ingestion gaps, data quality regressions, consumer lag) are detected automatically and logged for post-mortem analysis.
 
-See [Operations Guide](docs/OPERATIONS.md#alert-rules-9-rules) for full alert rule details.
+See [Operations Guide](docs/OPERATIONS.md#alert-rules-11-rules) for full alert rule details.
 
 ## CI/CD
 

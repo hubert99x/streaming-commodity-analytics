@@ -73,3 +73,4 @@ GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO grafana_read;
 -- (Pipeline & Data Quality dashboard reads from multiple monitoring tables)
 GRANT USAGE ON SCHEMA monitoring TO grafana_read;
 GRANT SELECT ON TABLE monitoring.dbt_test_runs TO grafana_read;
+GRANT SELECT ON TABLE monitoring.backup_log TO grafana_read;

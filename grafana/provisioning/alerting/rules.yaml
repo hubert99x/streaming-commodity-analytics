@@ -484,3 +484,114 @@ groups:
                   reducer:
                     type: last
                   type: query
+
+      # ======================================================
+      # WARNING: No successful backup in last 25 hours
+      # ======================================================
+      - uid: backup_stale_25h
+        title: "[WARN] No backup in 25h"
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        annotations:
+          summary: "No successful backup recorded in the last 25 hours"
+          description: "Backup freshness: no row with status='OK' in monitoring.backup_log for more than 25 hours."
+        labels:
+          severity: warning
+          component: backup
+        data:
+          - refId: A
+            datasourceUid: postgres
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              format: table
+              intervalMs: 1000
+              maxDataPoints: 1
+              rawSql: |
+                SELECT COALESCE(
+                  EXTRACT(EPOCH FROM (now() - MAX(ts_utc)))::bigint,
+                  999999
+                ) AS v
+                FROM monitoring.backup_log
+                WHERE status = 'OK';
+
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              settings: {}
+
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90000]
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+                  type: query
+
+      # ======================================================
+      # WARNING: mart_latest_prices stale (> 15 min)
+      # ======================================================
+      - uid: mart_latest_prices_stale_15m
+        title: "[WARN] Stale mart_latest_prices (>15m)"
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        annotations:
+          summary: "mart_latest_prices has not been refreshed in more than 15 minutes"
+          description: "Analytics freshness: the newest last_timestamp in analytics.mart_latest_prices is older than 15 minutes. This may indicate dbt failures or upstream pipeline stall."
+        labels:
+          severity: warning
+          component: dbt
+        data:
+          - refId: A
+            datasourceUid: postgres
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              format: table
+              intervalMs: 1000
+              maxDataPoints: 1
+              rawSql: |
+                SELECT COALESCE(
+                  EXTRACT(EPOCH FROM (now() - MAX(last_timestamp AT TIME ZONE 'UTC')))::bigint,
+                  999999
+                ) AS v
+                FROM analytics.mart_latest_prices;
+
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              settings: {}
+
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [900]
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+                  type: query

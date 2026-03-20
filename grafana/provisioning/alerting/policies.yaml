@@ -9,3 +9,6 @@ policies:
       - receiver: postgres-webhook
         matchers:
           - severity=critical
+      - receiver: postgres-webhook
+        matchers:
+          - severity=warning

@@ -90,7 +90,7 @@ make real
 ```
 Spark will re-read from the earliest available Kafka offset and reprocess. Idempotent inserts (`ON CONFLICT DO NOTHING`) prevent duplicates.
 
-## Alert Rules (9 rules)
+## Alert Rules (11 rules)
 
 All alerts evaluate every 30s and require the condition to persist for 2 minutes before firing. Alerts are sent to a Flask webhook receiver (`alert-receiver:5000`) which logs them to `monitoring.alert_events`.
 
@@ -105,6 +105,8 @@ All alerts evaluate every 30s and require the condition to persist for 2 minutes
 | Kafka lag > 50 | warning | Consumer falling behind |
 | Kafka lag > 500 | critical | Severe backlog |
 | Kafka partition lag > 30 | warning | Single stuck partition (may be masked by healthy total lag) |
+| No backup in 25h | warning | No successful backup in `backup_log` for >25 hours |
+| Stale mart_latest_prices (>15m) | warning | Analytics mart not refreshed in >15 minutes |
 
 ## Grafana Dashboards
 

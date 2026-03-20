@@ -138,7 +138,7 @@ All external ports bind to `127.0.0.1` (Grafana:3000, pgAdmin:5050, Kafka UI:808
                     │
                     ▼
  ┌─────────────────────────────────────────────┐
- │        GRAFANA (3 dashboards, 9 alerts)      │
+ │        GRAFANA (3 dashboards, 11 alerts)      │
  │  market_overview, market_analysis,           │
  │  pipeline_&_data_quality                     │
  │                                              │
@@ -214,7 +214,6 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 - Health heartbeat: writes timestamp to `/tmp/dbt_scheduler_alive`, checked by Docker health probe with 10-minute tolerance.
 - `dbt test` results parsed from `target/run_results.json` via `jq` and inserted into `monitoring.dbt_test_runs`.
 - 300-second timeout on subprocess execution.
-- **Automated ingest cleanup:** Periodically runs `cleanup_ingest_keep_2000.sql` to prune orphaned staging tables (configurable via `INGEST_CLEANUP_INTERVAL`, default 3600s).
 - **Automated retention:** Deletes records older than 90 days from all data and monitoring tables every 24 hours (configurable via `RETENTION_INTERVAL_SEC`). Replaces the previously manual retention service.
 - **Non-root execution:** Runs as UID 1000 (`USER 1000` in Dockerfile). Container hardened with `cap_drop: ALL`.
 
@@ -394,7 +393,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 
 ## 6. Monitoring & Alerting
 
-### Alert Rules (9 total, 30-second evaluation)
+### Alert Rules (11 total, 30-second evaluation)
 
 | Alert | Condition | Severity | Fires After |
 |-------|-----------|----------|-------------|
@@ -407,8 +406,10 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 | Kafka Lag >50 | `total_lag > 50` | WARNING | 2 min |
 | Kafka Lag >500 | `total_lag > 500` | CRITICAL | 2 min |
 | Kafka Partition Lag >30 | `max_partition_lag > 30` | WARNING | 2 min |
+| No Backup in 25h | No `status='OK'` row in `backup_log` for >25h | WARNING | 2 min |
+| Stale mart_latest_prices | `last_timestamp` older than 15 minutes | WARNING | 2 min |
 
-**Routing:** Critical alerts → `postgres-webhook` contact point → alert-receiver → `monitoring.alert_events`.
+**Routing:** Critical and warning alerts → `postgres-webhook` contact point → alert-receiver → `monitoring.alert_events`.
 
 **`noDataState`:** Most alerts fire on no-data (no data = something is broken), except DLQ (no data = no bad records = OK).
 
@@ -606,4 +607,4 @@ The following issues were identified during development and have been resolved:
 
 The system demonstrates strong architectural foundations: idempotent data flow, role-based access control, checkpoint-based effectively-once semantics, commodity-aware analytics, and comprehensive alert coverage. The design choices are well-reasoned for the stated use case (3 instruments, 6-minute intervals, single-machine deployment).
 
-The P1 items (credentials, TLS) are standard for development environments and would be addressed before any production deployment. The system includes 64 dbt tests, 8 Grafana alert rules, CI pipelines (lint, test, security scanning), and automated operational services (backup, retention, lag monitoring) — providing a robust foundation that exceeds typical thesis requirements.
+The P1 items (credentials, TLS) are standard for development environments and would be addressed before any production deployment. The system includes 64 dbt tests, 11 Grafana alert rules, CI pipelines (lint, test, security scanning), and automated operational services (backup, retention, lag monitoring) — providing a robust foundation that exceeds typical thesis requirements.
