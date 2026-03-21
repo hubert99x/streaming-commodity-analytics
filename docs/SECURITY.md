@@ -8,7 +8,7 @@ The project applies several production-inspired hardening practices, but it is d
 |---------|---------------|
 | No-new-privileges | `security_opt: no-new-privileges:true` on all containers |
 | Capability drop | `cap_drop: ALL` on Spark, producer, alert-receiver, kafka-lag, retention, dbt-scheduler |
-| Read-only rootfs | Spark, producer, alert-receiver, kafka-lag |
+| Read-only rootfs | producer, alert-receiver, kafka-lag |
 | Non-root users | Producer (appuser), alert-receiver (appuser), kafka-lag (appuser), Spark (uid 185), dbt-scheduler (uid 1000) |
 | tmpfs /tmp | Producer, alert-receiver (no persistent writable disk) |
 | Slim base images | python:3.11-slim, python:3.12-slim |
@@ -29,7 +29,7 @@ The project applies several production-inspired hardening practices, but it is d
 |------|---------|-------------|
 | `spark_writer` | public, ingest, monitoring | INSERT raw_prices, CREATE staging tables, INSERT DLQ |
 | `dbt_runner` | public, analytics | SELECT raw_prices, CREATE analytics models, DELETE monitoring (retention) |
-| `grafana_read` | analytics, monitoring | SELECT only (auto-granted on new dbt objects) |
+| `grafana_read` | analytics, monitoring | SELECT on all analytics tables (auto-granted on new dbt objects) + SELECT on all monitoring tables and views |
 | `producer_writer` | monitoring | INSERT api_calls |
 | `backup_user` | all | Superuser for pg_dump |
 

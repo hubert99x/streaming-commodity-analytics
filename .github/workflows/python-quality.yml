@@ -26,7 +26,7 @@ jobs:
 
       - name: Run Ruff lint
         run: |
-          ruff check producer tests ops
+          ruff check producer tests ops spark
 
       - name: Run unit tests
         run: |

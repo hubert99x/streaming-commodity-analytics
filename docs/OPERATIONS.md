@@ -25,7 +25,7 @@ make dbt-debug         # Validate dbt profile and connection
 ### Testing & Linting (local)
 These run automatically in CI on push/PR, but can also be run locally:
 ```bash
-pytest -q              # Run unit tests (35+ tests)
+pytest -q              # Run unit tests (38 tests)
 ruff check producer tests ops spark  # Lint Python code
 ```
 

@@ -227,11 +227,9 @@ def _staging_cycle(spark, jdbc_props, batch_df, *, staging_table, merge_sql, loc
 
         inserted = _exec_merge_returning_count(spark, merge_sql)
     finally:
-        unlock_ok = False
         for attempt in range(3):
             try:
                 lock_stmt.execute(f"SELECT pg_advisory_unlock({lock_key})")
-                unlock_ok = True
                 break
             except Exception as e:
                 if attempt == 2:

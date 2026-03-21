@@ -4,7 +4,7 @@ Traditional batch pipelines delay market change detection by minutes to hours. T
 
 Ingests XAU/USD, BTC/USD, and EUR/USD prices every 6 minutes from Twelve Data API, streams through Kafka, processes with Spark Structured Streaming into PostgreSQL, transforms with dbt, and visualizes in Grafana.
 
-The system emphasizes reliability through idempotent processing at every layer, a dead letter queue for invalid records, checkpoint-based fault-tolerant recovery, 9 automated alert rules, and 17+ dbt data quality tests.
+The system emphasizes reliability through idempotent processing at every layer, a dead letter queue for invalid records, checkpoint-based fault-tolerant recovery, 11 automated alert rules, and 60+ dbt data quality tests.
 
 ## Architecture
 
@@ -68,7 +68,7 @@ This is a portfolio / master's thesis project that demonstrates end-to-end data 
 
 **11 alert rules** covering: stale ingest, API errors, DLQ events, dbt test failures, Kafka lag (total + per-partition), BTC heartbeat, backup freshness, analytics staleness. All alerts route through webhook receiver → `monitoring.alert_events`.
 
-**7 monitoring tables:** `api_calls`, `dead_letter_events`, `kafka_lag`, `alert_events`, `dbt_test_runs`, `backup_log` + 3 summary views.
+**6 monitoring tables:** `api_calls`, `dead_letter_events`, `kafka_lag`, `alert_events`, `dbt_test_runs`, `backup_log` + 3 summary views (`pipeline_metrics`, `api_metrics_18m`, `kafka_lag_latest`).
 
 This ensures that pipeline failures (ingestion gaps, data quality regressions, consumer lag) are detected automatically and logged for post-mortem analysis.
 
