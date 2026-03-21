@@ -1649,7 +1649,7 @@
     "list": []
   },
   "time": {
-    "from": "now-2d",
+    "from": "now-12h",
     "to": "now"
   },
   "timeRangeUpdatedDuringEditOrView": false,
