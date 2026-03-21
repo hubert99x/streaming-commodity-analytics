@@ -187,7 +187,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 **Key behaviors:**
 - **Trigger:** 300-second processing intervals. `maxOffsetsPerTrigger=5000` limits backpressure.
 - **Offset management:** Checkpoint directory (not Kafka consumer groups). Each Spark instance maintains its own offset state.
-- **Validation pipeline:** Multi-level checks per record (logic extracted to `spark/validation.py` for testability — 27 unit tests). Price bounds and schema version are imported from the shared `validation.py` module (single source of truth):
+- **Validation pipeline:** Multi-level checks per record (logic extracted to `spark/validation.py` for testability — 27 unit tests). Price bounds are defined in `spark/validation.py` (single source of truth for Spark and tests). The producer maintains its own copy of the same bounds (`producer.py:69-73`) — these are not imported from `validation.py` but are kept in sync manually. Validation checks per record:
   - Null field detection (MISSING_FIELD errors)
   - Price positivity check
   - Schema version check (must be `1`)
@@ -244,7 +244,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 
 **Backup (`backup-cron`):** `pg_dump -F c` every 2 hours, keeps last 360 dumps (~30 days). Logs to `monitoring.backup_log`.
 
-**Retention (`retention`):** Manual trigger (restart: "no"). Deletes records older than 90 days from `raw_prices`, `dead_letter_events`, `alert_events` and runs `VACUUM` on each affected table. `VACUUM (ANALYZE)` on `raw_prices` runs on Sundays only.
+**Retention (`retention`):** Manual trigger (restart: "no"). Deletes records older than 90 days from all 7 tables (`raw_prices`, `dead_letter_events`, `alert_events`, `api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log`) and runs `VACUUM` on each table after deletion. The standalone retention container (`ops/retention-image/run_retention.sh`) additionally runs `VACUUM (ANALYZE)` on `raw_prices` on Sundays only.
 
 **Weaknesses:**
 - **Backups are unencrypted.** Stored as plain `pg_dump` files on the host filesystem. No encryption at rest.
@@ -324,14 +324,14 @@ kafka_offset    BIGINT                -- Audit trail
 | Role | Schemas | Permissions |
 |------|---------|-------------|
 | `spark_writer` | public, ingest, monitoring | INSERT raw_prices, CREATE staging tables, INSERT DLQ |
-| `dbt_runner` | public, analytics | SELECT raw_prices, CREATE analytics models |
+| `dbt_runner` | public, analytics, monitoring | SELECT raw_prices, CREATE analytics models, DELETE monitoring (retention) |
 | `grafana_read` | analytics, monitoring | SELECT on all analytics tables (auto-granted on new dbt objects) + SELECT on all monitoring tables and views |
 | `producer_writer` | monitoring | INSERT api_calls |
-| `backup_user` | all | Superuser for pg_dump |
+| `backup_user` | all | SELECT on all schemas + INSERT backup_log (used by pg_dump and backup logging) |
 
 **Notable:** `DEFAULT PRIVILEGES FOR USER dbt_runner` auto-grants SELECT to `grafana_read` on any new table dbt creates. This is a well-designed pattern that prevents missing grants when models are added.
 
-**Weakness:** The `backup_user` role uses superuser privileges and passes the password via `PGPASSWORD` environment variable, which is visible in `docker inspect` and `/proc` on the host. A `.pgpass` file with restricted permissions would be more secure.
+**Weakness:** The `backup_user` role passes the password via `PGPASSWORD` environment variable, which is visible in `docker inspect` and `/proc` on the host. A `.pgpass` file with restricted permissions would be more secure.
 
 ---
 
@@ -362,7 +362,7 @@ Pass-through with explicit type casts and timezone normalization (`timestamptz` 
 One row per commodity. Uses PostgreSQL `DISTINCT ON` with a 24-hour optimization window — scans last 24 hours first, falls back to full scan only for commodities missing from that window. Materialized as a view so each query reads the latest data directly from the staging layer.
 
 #### `mart_minute_last_price` (Incremental, 30-min lookback)
-1-minute OHLC-style buckets. Picks the **last** price per minute via `array_agg(price ORDER BY event_ts DESC)[1]`. Includes event count (`n`), min/max price. Post-hook creates a `(symbol, minute_bucket DESC)` index.
+1-minute OHLC-style buckets. Picks the **last** price per minute via `array_agg(price ORDER BY event_ts DESC)[1]`. Includes event count (`n`), min/max price. Post-hook creates a `(minute_bucket DESC)` index.
 
 #### `mart_price_events` (Incremental, 2-hour lookback)
 Detects significant price movements using `LAG()` window function with **commodity-specific thresholds**:

@@ -31,7 +31,7 @@ The project applies several production-inspired hardening practices, but it is d
 | `dbt_runner` | public, analytics | SELECT raw_prices, CREATE analytics models, DELETE monitoring (retention) |
 | `grafana_read` | analytics, monitoring | SELECT on all analytics tables (auto-granted on new dbt objects) + SELECT on all monitoring tables and views |
 | `producer_writer` | monitoring | INSERT api_calls |
-| `backup_user` | all | Superuser for pg_dump |
+| `backup_user` | all | SELECT on all schemas + INSERT backup_log (used by pg_dump and backup logging) |
 
 `DEFAULT PRIVILEGES FOR USER dbt_runner` auto-grants SELECT to `grafana_read` on any new table dbt creates.
 
