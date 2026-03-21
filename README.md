@@ -1,22 +1,46 @@
 # Near Real-Time Commodity Price Streaming System
 
-Traditional batch pipelines delay market change detection by minutes to hours. This system provides near real-time commodity price analytics with a micro-batch streaming architecture, layered reliability, and built-in observability.
+Near real-time streaming data pipeline for commodity and FX prices (XAU/USD, BTC/USD, EUR/USD).
 
-Ingests XAU/USD, BTC/USD, and EUR/USD prices every 6 minutes from Twelve Data API, streams through Kafka, processes with Spark Structured Streaming into PostgreSQL, transforms with dbt, and visualizes in Grafana.
+Data is ingested every 6 minutes from Twelve Data API and streamed via Kafka. It is then processed with Spark Structured Streaming, stored in PostgreSQL, transformed with dbt, and visualized in Grafana.
 
-The system emphasizes reliability through idempotent processing at every layer, a dead letter queue for invalid records, checkpoint-based fault-tolerant recovery, 11 automated alert rules, and 64 dbt data quality tests.
+**Stack:** Kafka · Spark Structured Streaming · PostgreSQL · dbt · Grafana · Docker
+
+## Key Features
+
+- Kafka + Spark Structured Streaming architecture
+- Near real-time pipeline (6–12 min latency)
+- Idempotent processing (UUID5 + ON CONFLICT)
+- Dead Letter Queue (DLQ) for invalid events
+- Data quality layer (64 dbt tests)
+- Observability (metrics, logs, alerts)
+- Backup & disaster recovery (pg_dump + restore)
+- Container hardening + RBAC
 
 ## Architecture
 
 ### Core Data Flow
 ![Core Data Flow](docs/core_data_flow.png)
 
+End-to-end flow: Twelve Data API → Kafka → Spark Structured Streaming → PostgreSQL → dbt → Grafana.
+
 ### Monitoring & Operations
 ![Monitoring & Operations](docs/monitoring_operations.png)
 
+Operational layer including alerts, metrics, backups, and system health monitoring.
+
+## Demo
+
+Example Grafana dashboards showing near real-time prices, pipeline health, and data quality metrics:
+
+![Market Overview](docs/grafana_market_overview.png)
+![Pipeline Monitoring](docs/grafana_pipeline.png)
+
 ## Why This Project
 
-This is a master's thesis project that demonstrates end-to-end data engineering beyond a simple ETL script. It covers: event-driven ingestion, micro-batch stream processing, layered idempotency, dead letter queues, data quality testing, observability with alerting, container hardening, and CI/CD — all wired together as a single `make real` deployment.
+This master's thesis project demonstrates an end-to-end data engineering system for near real-time ingestion, transformation, monitoring, and recovery.
+
+Compared to traditional batch ETL, it provides faster feedback loops, continuous validation, and built-in operational visibility.
 
 ## Key Design Decisions
 
@@ -25,7 +49,7 @@ This is a master's thesis project that demonstrates end-to-end data engineering 
 | **Idempotent inserts** (`ON CONFLICT DO NOTHING`) | Deterministic event IDs (UUID5) mean the same event always produces the same ID — enables safe replay after crashes without duplicates |
 | **Dead Letter Queue** | Invalid records land in `monitoring.dead_letter_events` with full payload — nothing is silently dropped |
 | **Checkpoint-based offsets** | Spark manages Kafka offsets via checkpoint dir, not consumer groups — avoids offset conflicts on restart |
-| **Persistent staging + advisory lock** | Batch data lands in a staging table, then merges into target under `pg_advisory_lock` — serializes concurrent writes without table-level locks |
+| **Persistent staging + advisory lock** | Batch data lands in a staging table, then merges into target under `pg_advisory_lock` — ensures safe concurrent writes without full table locks |
 | **Multi-layer validation** | Price bounds checked at producer (pre-publish) AND Spark (post-consume) — defense in depth |
 | **FX weekend gating** | XAU/USD, EUR/USD skipped Fri 22:00 – Sun 21:59 UTC; BTC runs 24/7 — prevents stale quotes from polluting analytics |
 | **5 database roles** | Each service gets only the permissions it needs — a compromised component cannot escalate beyond its own schema |
@@ -36,18 +60,18 @@ This is a master's thesis project that demonstrates end-to-end data engineering 
 
 | Service | Role | Profile |
 |---------|------|---------|
-| **postgres** | PostgreSQL 16.6 — primary database | core |
-| **kafka** | KRaft mode, 3 partitions | core |
+| **postgres** | PostgreSQL 16.6 (primary storage) | core |
+| **kafka** | Apache Kafka (KRaft mode, 3 partitions) | core |
 | **producer** | Fetches prices from Twelve Data API every 6 min | core |
 | **spark-stream** | Kafka → PostgreSQL via Structured Streaming (trigger 300s) | core |
 | **dbt-scheduler** | `dbt run` every 6m, `dbt test` every 30m, retention every 24h | core |
-| **grafana** | 3 dashboards, 11 alert rules | core |
-| **alert-receiver** | Flask webhook for Grafana alerts → PostgreSQL | core |
+| **grafana** | Grafana (dashboards + alerting) | core |
+| **alert-receiver** | Flask webhook (alert ingestion endpoint) | core |
 | **kafka-lag** | Monitors Spark consumer lag | ops |
 | **backup-cron** | pg_dump every 2h, keeps last 360 backups | ops |
-| **retention** | Manual retention cleanup (alternative to scheduler retention) | ops |
-| **spark** | Interactive Spark shell for debugging | manual |
-| **dbt** | One-off dbt commands | manual |
+| **retention** | Manual retention utility (backup/fallback path) | ops |
+| **spark** | Interactive Spark shell (debugging) | manual |
+| **dbt** | One-off dbt execution container | manual |
 | **pgadmin** | Database admin UI (port 5050) | dev |
 | **kafka-ui** | Kafka topic browser (port 8080) | dev |
 
@@ -71,9 +95,20 @@ This is a master's thesis project that demonstrates end-to-end data engineering 
 
 **11 alert rules** covering: stale ingest, API errors, DLQ events, dbt test failures, Kafka lag (total + per-partition), BTC heartbeat, backup freshness, analytics staleness. All alerts route through webhook receiver → `monitoring.alert_events`.
 
-**6 monitoring tables:** `api_calls`, `dead_letter_events`, `kafka_lag`, `alert_events`, `dbt_test_runs`, `backup_log` + 3 summary views (`pipeline_metrics`, `api_metrics_18m`, `kafka_lag_latest`).
+**Monitoring tables:**
+- `api_calls`
+- `dead_letter_events`
+- `kafka_lag`
+- `alert_events`
+- `dbt_test_runs`
+- `backup_log`
 
-This ensures that pipeline failures (ingestion gaps, data quality regressions, consumer lag) are detected automatically and logged for post-mortem analysis.
+**Summary monitoring views:**
+- `pipeline_metrics`
+- `api_metrics_18m`
+- `kafka_lag_latest`
+
+This ensures that pipeline failures (ingestion gaps, data quality regressions, consumer lag) are detected in near real-time, surfaced via alerts, and recorded for analysis.
 
 See [Operations Guide](docs/OPERATIONS.md#alert-rules-11-rules) for full alert rule details.
 
@@ -115,14 +150,16 @@ cd streaming-commodity-analytics
 cp .env.example .env
 # Edit .env — set TD_API_KEY at minimum, review passwords
 
-# 3. Start
+# 3. Start (Kafka, Spark, PostgreSQL, dbt, Grafana + operational services)
 make real
 
 # 4. Verify
-make health          # all services should show "healthy" within ~1 min
+make health          # all services should show "healthy" within ~2 min
 
-# 5. Open Grafana at http://localhost:3000
+# 5. Open Grafana at http://localhost:3000 (credentials in .env)
 ```
+
+This starts all core services and operational jobs required for the full pipeline (Kafka, Spark, PostgreSQL, dbt, Grafana). Initial startup may take 1–2 minutes while containers initialize.
 
 ### What to Expect After Startup
 
@@ -133,6 +170,13 @@ make health          # all services should show "healthy" within ~1 min
 - On weekends, only BTC/USD updates continuously — XAU/USD and EUR/USD are gated (Fri 22:00 – Sun 21:59 UTC)
 - You can verify ingestion directly in PostgreSQL (`public.raw_prices`) — see [Troubleshooting](docs/TROUBLESHOOTING.md#diagnostics)
 - Kafka topic activity can be inspected via Kafka UI (`make dev`, port 8080)
+- If services are not healthy, check logs: `make logs-core`
+
+**Pipeline is considered healthy when:**
+- API calls are successful (no sustained errors in `monitoring.api_calls`)
+- new rows continuously appear in `public.raw_prices`
+- Kafka lag remains near zero (no growing backlog)
+- no active alerts in Grafana
 
 ## Project Structure
 
@@ -141,7 +185,7 @@ streaming-commodity-analytics/
 ├── producer/              # Python API producer
 ├── spark/                 # Spark Structured Streaming job
 ├── dbt/                   # dbt models (staging + marts)
-├── ops/                   # Operational services
+├── ops/                   # Operational services (monitoring, alerts, scheduling)
 │   ├── alert-receiver/    #   Flask webhook listener
 │   ├── dbt-scheduler/     #   Automated dbt runs
 │   ├── kafka-lag/         #   Consumer lag monitor
@@ -163,9 +207,20 @@ streaming-commodity-analytics/
 |----------|-------------|
 | [Operations Guide](docs/OPERATIONS.md) | Commands, dashboards, alert rules, checkpoints, volume management |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues, diagnostics, DLQ investigation |
-| [Security](docs/SECURITY.md) | Container hardening, RBAC, CI scanning |
 | [Disaster Recovery](docs/DISASTER_RECOVERY.md) | Backup/restore procedures, volume management |
+| [Security](docs/SECURITY.md) | Container hardening, RBAC, CI scanning |
 | [Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md) | Deep-dive architecture analysis, weaknesses, recommendations |
+
+## Limitations
+
+- Single-node deployment (Docker Compose)
+- No high availability (single PostgreSQL instance, single Kafka broker, no replication or failover)
+- No TLS between services
+- Kafka runs without authentication (PLAINTEXT)
+- Backups are not encrypted
+- Not designed for horizontal scaling
+
+This system is intended for educational and portfolio use, while applying production-inspired design patterns and operational practices.
 
 ## License
 

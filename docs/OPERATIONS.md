@@ -1,5 +1,76 @@
 # Operations Guide
 
+## Incident Debug Flow
+
+If the system is not working correctly, follow this order:
+
+1. **Check pipeline health:**
+   ```sql
+   SELECT * FROM monitoring.pipeline_metrics;
+   ```
+
+2. **Check API availability:**
+   ```sql
+   SELECT status_code, count(*) FROM monitoring.api_calls
+   WHERE ts_utc >= now() - interval '15 minutes'
+   GROUP BY 1;
+   ```
+
+3. **Check if data is arriving:**
+   ```sql
+   SELECT max(event_ts), max(ingest_ts) FROM public.raw_prices;
+   ```
+
+4. **Check Spark logs:**
+   ```bash
+   docker compose logs -f spark-stream
+   ```
+
+5. **Check Kafka lag:**
+   ```sql
+   SELECT * FROM monitoring.kafka_lag_latest;
+   ```
+
+6. **Check Grafana dashboards:**
+   - If data exists in PostgreSQL but not in Grafana — visualization or query issue, not a pipeline problem
+
+### Data looks incorrect (spikes, missing values, anomalies)
+
+- Check DLQ for validation failures:
+  ```sql
+  SELECT error_reason, count(*) FROM monitoring.dead_letter_events
+  WHERE ts_utc >= now() - interval '1 hour'
+  GROUP BY 1;
+  ```
+
+- Check recent raw data:
+  ```sql
+  SELECT * FROM public.raw_prices
+  ORDER BY event_ts DESC LIMIT 20;
+  ```
+
+- Check dbt test results:
+  ```sql
+  SELECT * FROM monitoring.dbt_test_runs
+  ORDER BY run_ts DESC LIMIT 5;
+  ```
+
+### API returns data but no new events
+
+If the API shows no errors but timestamps in `raw_prices` are stale:
+```sql
+SELECT max(event_ts) FROM public.raw_prices;
+```
+If `event_ts` is not advancing despite successful API calls, the issue is likely upstream (data provider delay or stale quotes).
+
+### How to interpret results
+
+- If `pipeline_metrics` shows high `time_since_last_ingest_seconds` — ingestion problem (producer or API)
+- If API errors are present — external dependency issue (Twelve Data)
+- If `raw_prices` is not updating — Spark or Kafka issue
+- If Kafka lag is increasing — Spark is slower than ingestion or stalled
+- If all checks are healthy and data is flowing — pipeline is operating correctly
+
 ## Commands
 
 ### Running the System
@@ -26,7 +97,7 @@ make dbt-debug         # Validate dbt profile and connection
 These run automatically in CI on push/PR, but can also be run locally:
 ```bash
 pytest -q              # Run unit tests (38 tests)
-ruff check producer tests ops spark  # Lint Python code
+ruff check producer tests ops spark  # Lint Python code (example: these are the project's source directories)
 ```
 
 ### Backup & Restore
@@ -35,24 +106,59 @@ make backup                                  # One-off pg_dump
 make restore FILE=backup_YYYYMMDD_HHMM.dump  # Restore from dump
 ```
 
-## Common Operations
-
-**Restart a single service:**
+After restore, restart dependent services:
 ```bash
+docker compose restart spark-stream grafana dbt-scheduler
+```
+
+Note: Kafka data and Spark checkpoints are not included in the backup. After restore:
+- If checkpoints exist — Spark continues from last known offsets
+- If checkpoints were removed — full reprocessing from Kafka
+
+## Common Scenarios
+
+**Restart entire system (safe, preserves data):**
+```bash
+make down
+make real
+```
+
+**Full reset (DESTROYS all data):**
+```bash
+make downv
+make real
+```
+
+**Debug a single service:**
+```bash
+docker compose logs -f --tail=200 spark-stream
 docker compose restart spark-stream
 ```
 
-**View logs for specific services:**
+**View logs for multiple services:**
 ```bash
 docker compose logs -f --tail=200 producer spark-stream postgres
 ```
 
-**Reset Kafka topic** (delete all messages and start fresh):
+**Reset Kafka topic (reprocess entire pipeline from scratch):**
 ```bash
 make down
 docker volume rm streaming_system_kafka_data
 docker volume rm streaming_system_spark_checkpoints
 make real
+```
+This removes all Kafka data and Spark checkpoints. The pipeline will replay from the beginning. Safe due to idempotent inserts (`ON CONFLICT DO NOTHING`), but may take time depending on data volume.
+
+This operation may cause a temporary spike in load due to full reprocessing. Use this only when:
+- Kafka topic is corrupted
+- Checkpoints are inconsistent with Kafka state
+- You want to fully reprocess historical data
+
+**Check system quickly (no SQL):**
+Useful for quick sanity check without database access.
+```bash
+make health
+docker compose logs spark-stream --tail=50
 ```
 
 **Force dbt rebuild** (full refresh, not incremental):
@@ -82,17 +188,25 @@ Spark uses a checkpoint directory (`spark_checkpoints` Docker volume) to track K
 - Changing the Spark `StructType` schema definition in `stream_to_postgres.py`
 - Changing the output columns written to PostgreSQL
 
+If checkpoints are not cleared after schema changes, Spark may fail to start or produce inconsistent results. If checkpoint corruption is suspected (e.g. Spark fails to start repeatedly), remove the checkpoint volume and restart the pipeline.
+
 **How to clear checkpoints:**
 ```bash
 make down
 docker volume rm streaming_system_spark_checkpoints  # remove checkpoint volume
 make real
 ```
-Spark will re-read from the earliest available Kafka offset and reprocess. Idempotent inserts (`ON CONFLICT DO NOTHING`) prevent duplicates.
+Spark will re-read from the earliest available Kafka offset and reprocess all messages. This may temporarily increase load and processing time. Idempotent inserts (`ON CONFLICT DO NOTHING`) prevent duplicates.
 
 ## Alert Rules (11 rules)
 
-All alerts evaluate every 30s and require the condition to persist for 2 minutes before firing. Alerts are sent to a Flask webhook receiver (`alert-receiver:5000`) which logs them to `monitoring.alert_events`.
+All alerts evaluate every 30s and require the condition to persist for 2 minutes before firing. Alerts are sent to a Flask webhook receiver (`alert-receiver:5000`) which logs them to `monitoring.alert_events`. Use the [Troubleshooting guide](TROUBLESHOOTING.md) to diagnose and resolve triggered alerts.
+
+Alerts are evaluated continuously — short spikes may not trigger alerts unless they persist for the configured duration.
+
+Severity levels:
+- **critical** — requires immediate investigation (pipeline may be broken)
+- **warning** — degraded state, monitor closely
 
 | Rule | Severity | Condition |
 |------|----------|-----------|

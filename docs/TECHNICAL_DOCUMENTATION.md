@@ -187,7 +187,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 **Key behaviors:**
 - **Trigger:** 300-second processing intervals. `maxOffsetsPerTrigger=5000` limits backpressure.
 - **Offset management:** Checkpoint directory (not Kafka consumer groups). Each Spark instance maintains its own offset state.
-- **Validation pipeline:** Multi-level checks per record (logic extracted to `spark/validation.py` for testability — 27 unit tests). Price bounds are defined in `spark/validation.py` (single source of truth for Spark and tests). The producer maintains its own copy of the same bounds (`producer.py:69-73`) — these are not imported from `validation.py` but are kept in sync manually. Validation checks per record:
+- **Validation pipeline:** Multi-level checks per record (logic extracted to `spark/validation.py` for testability — 27 unit tests). Price bounds are duplicated across Spark (`spark/validation.py`) and producer (`producer.py:69-73`) — the producer maintains its own copy for early rejection before Kafka publish. These are kept in sync manually, not imported from a shared module. Validation checks per record:
   - Null field detection (MISSING_FIELD errors)
   - Price positivity check
   - Schema version check (must be `1`)
@@ -378,7 +378,7 @@ Excludes observations after a >30-minute gap (prevents false extreme events from
 #### `mart_price_volatility_1h` (Incremental, 2-hour lookback)
 Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes current incomplete hour.
 
-### Data Quality Tests (17+)
+### Data Quality Tests (64)
 
 - **Staging:** not_null and unique on event_id; accepted_values on commodity and currency; freshness bounds (`event_ts` within -2h to +1min of `ingest_ts`).
 - **Marts:** unique combination checks on composite keys; price sanity (> 0, min ≤ max); event_type accepted values.

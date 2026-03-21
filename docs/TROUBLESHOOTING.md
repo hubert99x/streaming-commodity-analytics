@@ -4,17 +4,39 @@
 
 | Problem | Cause | Solution |
 |---------|-------|---------|
-| No data in Grafana | System needs ~6 min for first data | Wait for first poll cycle + Spark trigger |
+| No new data in raw_prices | API failure or rate limit | Check `monitoring.api_calls` and producer logs |
+| No data in Grafana (initial startup) | System needs ~6 min for first data | Wait for first poll cycle + Spark trigger |
+| Spark crash-loop | Dependency or Python compatibility issue | Check Spark logs and validation/typing issues in code |
+| Kafka Lag increasing (growing backlog) | Spark not keeping up or stuck | Check Spark logs and `monitoring.kafka_lag_latest` |
+| High Pipeline Latency | Producer (360s) + Spark (300s) cycles are not synchronized | Expected — worst-case latency ~660s, typical lower |
+| dbt test FAIL | Temporary data inconsistency (e.g. restart, delayed ingest, freshness breach) | Usually auto-resolves; check `monitoring.dbt_test_runs` |
 | Pipeline Status = WARNING | Weekend with 1 instrument (BTC only) | Normal — XAU/EUR are gated on weekends |
-| dbt test FAIL | System restart caused `ingest_ts - event_ts > 24h` | Will auto-resolve; see `_staging.yml` tolerance |
-| Spark crash-loop | Python version compatibility | Check `spark/validation.py` uses `typing.Dict` not `dict[]` |
-| High Pipeline Latency | Producer (360s) + Spark (300s) desync | Normal — max latency ~660s on weekends |
+
+## Quick Debug Order
+
+1. Check `monitoring.pipeline_metrics` — overall pipeline health (ingest delay, events count)
+2. Check `monitoring.api_calls` — API availability (200 vs 4xx/5xx errors)
+3. Check `public.raw_prices` — confirm data is being written (`event_ts` vs `ingest_ts`)
 
 ## Diagnostics
 
 **Connect to PostgreSQL shell:**
 ```bash
 docker compose exec postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
+
+**Quick pipeline health check:**
+```sql
+SELECT * FROM monitoring.pipeline_metrics;
+```
+
+**Check recent API status:**
+```sql
+SELECT status_code, count(*) AS n
+FROM monitoring.api_calls
+WHERE ts_utc >= now() - interval '15 minutes'
+GROUP BY 1
+ORDER BY n DESC;
 ```
 
 **Check if Spark is writing data:**
@@ -27,11 +49,18 @@ docker compose exec postgres sh -lc \
    FROM public.raw_prices;"'
 ```
 
-**Check if Kafka topic exists and has data:**
+**Check recent DLQ events:**
+```sql
+SELECT count(*) AS dlq_last_1h
+FROM monitoring.dead_letter_events
+WHERE ts_utc >= now() - interval '1 hour';
+```
+
+**Check Kafka topic offsets (should increase over time):**
 ```bash
-docker compose exec kafka kafka-topics \
-  --bootstrap-server kafka:29092 \
-  --describe --topic commodity_prices
+docker compose exec kafka kafka-run-class kafka.tools.GetOffsetShell \
+  --broker-list kafka:29092 \
+  --topic commodity_prices
 ```
 
 ## DLQ Investigation
