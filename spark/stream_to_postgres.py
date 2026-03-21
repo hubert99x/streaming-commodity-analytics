@@ -67,6 +67,10 @@ DLQ_STAGING_TABLE = os.getenv("PG_DLQ_STAGING_TABLE", "ingest.dlq_staging")
 # Backpressure: limits how many Kafka offsets Spark reads per micro-batch
 KAFKA_MAX_OFFSETS_PER_TRIGGER = os.getenv("KAFKA_MAX_OFFSETS_PER_TRIGGER", "5000")
 
+# JDBC connection timeouts (seconds), passed to PostgreSQL driver
+JDBC_CONNECT_TIMEOUT = int(os.getenv("JDBC_CONNECT_TIMEOUT", "10"))
+JDBC_SOCKET_TIMEOUT = int(os.getenv("JDBC_SOCKET_TIMEOUT", "30"))
+
 # =========================
 # Kafka options
 # =========================
@@ -113,8 +117,8 @@ def _get_jdbc_props(spark: SparkSession):
     props = jvm.java.util.Properties()
     props.setProperty("user", POSTGRES_USER)
     props.setProperty("password", POSTGRES_PASSWORD)
-    props.setProperty("connectTimeout", "10")
-    props.setProperty("socketTimeout", "30")
+    props.setProperty("connectTimeout", str(JDBC_CONNECT_TIMEOUT))
+    props.setProperty("socketTimeout", str(JDBC_SOCKET_TIMEOUT))
     return props
 
 

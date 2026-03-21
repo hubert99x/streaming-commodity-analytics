@@ -327,6 +327,9 @@ services:
       KAFKA_BOOTSTRAP: kafka:29092
       KAFKA_TOPIC: ${KAFKA_TOPIC}
 
+      JDBC_CONNECT_TIMEOUT: ${JDBC_CONNECT_TIMEOUT:-10}
+      JDBC_SOCKET_TIMEOUT: ${JDBC_SOCKET_TIMEOUT:-30}
+
       SPARK_CHECKPOINT_DIR: /home/spark/checkpoints/raw_prices
 
     volumes:
@@ -355,11 +358,11 @@ services:
             --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgresql:postgresql:42.7.3 \
             /opt/spark-app/stream_to_postgres.py
     healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep -q '[s]park-submit' || exit 1"]
+      test: ["CMD-SHELL", "ps aux | grep -q '[s]park-submit' && find /home/spark/checkpoints/raw_prices -maxdepth 1 -mmin -10 | grep -q ."]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 60s
+      start_period: 120s
     cap_drop:
       - ALL
     cap_add:

@@ -130,7 +130,7 @@ All external ports bind to `127.0.0.1` (Grafana:3000, pgAdmin:5050, Kafka UI:808
  ┌─────────────────────────────────────────────┐
  │            dbt (every 6 minutes)             │
  │  analytics.stg_raw_prices        (view)      │
- │  analytics.mart_latest_prices    (table)     │
+ │  analytics.mart_latest_prices    (view)      │
  │  analytics.mart_minute_last_price (incr.)    │
  │  analytics.mart_price_events      (incr.)    │
  │  analytics.mart_price_volatility_1h (incr.)  │
@@ -194,8 +194,8 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
   - Commodity-specific price bounds (XAU: 500–15000, BTC: 100–1M, EUR: 0.5–2.0)
 - **Staging table pattern:** Good records → `ingest.raw_prices_staging` (truncate-append-merge). PostgreSQL advisory lock (key 1) serializes concurrent merges.
 - **DLQ:** Bad records → `ingest.dlq_staging` → merged into `monitoring.dead_letter_events` with its own advisory lock (key 2) and unique constraint to prevent duplicates on batch replay.
-- **JDBC timeouts:** `connectTimeout=10s`, `socketTimeout=30s` prevent indefinite hangs on Postgres connection issues.
-- **Health check:** Docker liveness probe (`ps aux | grep spark-submit`) detects process crashes.
+- **JDBC timeouts:** `connectTimeout` and `socketTimeout` (configurable via `JDBC_CONNECT_TIMEOUT` and `JDBC_SOCKET_TIMEOUT` env vars, defaults 10s/30s) prevent indefinite hangs on Postgres connection issues.
+- **Health check:** Docker liveness probe checks both that `spark-submit` process is alive and that checkpoint directory was modified within the last 10 minutes, detecting both crashes and stalled processing.
 - **Deduplication:** Handled entirely by PostgreSQL `ON CONFLICT (event_id) DO NOTHING` — no in-batch `dropDuplicates` needed. **Conflict-skipped rows are counted and logged** (`conflict_skipped=N`) for observability, distinguishing healthy idempotent replays from data quality issues.
 - **DLQ write failure tracking:** If DLQ staging fails, the lost record count is logged with a structured `DLQ_WRITE_FAILURE` tag and `lost_records=N` for grep-based alerting.
 - **Advisory lock retry:** `pg_advisory_unlock` retries up to 3 times before giving up, preventing deadlocks from transient connection issues.
@@ -244,7 +244,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 
 **Backup (`backup-cron`):** `pg_dump -F c` every 2 hours, keeps last 360 dumps (~30 days). Logs to `monitoring.backup_log`.
 
-**Retention (`retention`):** Manual trigger (restart: "no"). Deletes records older than 90 days from `raw_prices`, `dead_letter_events`, `alert_events`. Runs `VACUUM ANALYZE` on Sundays only.
+**Retention (`retention`):** Manual trigger (restart: "no"). Deletes records older than 90 days from `raw_prices`, `dead_letter_events`, `alert_events` and runs `VACUUM` on each affected table. `VACUUM (ANALYZE)` on `raw_prices` runs on Sundays only.
 
 **Weaknesses:**
 - **Backups are unencrypted.** Stored as plain `pg_dump` files on the host filesystem. No encryption at rest.
@@ -267,7 +267,7 @@ commodities (database)
 │   └── dlq_staging             ← DLQ staging
 ├── analytics (dbt)
 │   ├── stg_raw_prices          ← View (type casting, timezone)
-│   ├── mart_latest_prices      ← Table (latest price per commodity)
+│   ├── mart_latest_prices      ← View (latest price per commodity)
 │   ├── mart_minute_last_price  ← Incremental (1-min OHLC buckets)
 │   ├── mart_price_events       ← Incremental (significant moves)
 │   └── mart_price_volatility_1h ← Incremental (hourly volatility)
@@ -347,7 +347,7 @@ public.raw_prices
        ▼
 stg_raw_prices (VIEW)
        │
-       ├──▶ mart_latest_prices      (TABLE, full rebuild)
+       ├──▶ mart_latest_prices      (VIEW)
        ├──▶ mart_minute_last_price  (INCREMENTAL, 30m lookback)
        ├──▶ mart_price_events       (INCREMENTAL, 2h lookback)
        └──▶ mart_price_volatility_1h (INCREMENTAL, 2h lookback)
@@ -358,8 +358,8 @@ stg_raw_prices (VIEW)
 #### `stg_raw_prices` (View)
 Pass-through with explicit type casts and timezone normalization (`timestamptz` → naive UTC). Preserves Kafka partition/offset for lineage tracing. Defined via `{{ source('public', 'raw_prices') }}` with **source freshness SLA** (warn after 10 minutes, error after 20 minutes).
 
-#### `mart_latest_prices` (Table, full rebuild)
-One row per commodity. Uses PostgreSQL `DISTINCT ON` with a 24-hour optimization window — scans last 24 hours first, falls back to full scan only for commodities missing from that window.
+#### `mart_latest_prices` (View)
+One row per commodity. Uses PostgreSQL `DISTINCT ON` with a 24-hour optimization window — scans last 24 hours first, falls back to full scan only for commodities missing from that window. Materialized as a view so each query reads the latest data directly from the staging layer.
 
 #### `mart_minute_last_price` (Incremental, 30-min lookback)
 1-minute OHLC-style buckets. Picks the **last** price per minute via `array_agg(price ORDER BY event_ts DESC)[1]`. Includes event count (`n`), min/max price. Post-hook creates a `(symbol, minute_bucket DESC)` index.
@@ -386,7 +386,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 
 **Weaknesses:**
 - **Incremental lookback edge case.** If `dbt build` is skipped for >30 minutes (scheduler blocked or container restarting), `mart_minute_last_price`'s 30-minute lookback window may miss late-arriving data from before the gap.
-- **`mart_latest_prices` is fully rebuilt each run.** As `raw_prices` grows, this will become slower. The 24-hour optimization helps but has a fallback full scan for any commodity missing from the window.
+- **`mart_latest_prices` is a view.** Each Grafana query executes the underlying SQL against `stg_raw_prices`. The 24-hour optimization window limits scan scope, but the fallback full scan may slow down if `raw_prices` grows significantly.
 - **Hardcoded thresholds.** Price event thresholds and bounds are embedded in SQL. Changing them requires a dbt rebuild and potential reprocessing of the incremental lookback window.
 
 ---
@@ -601,7 +601,7 @@ The following issues were identified during development and have been resolved:
 | P3 | Price bounds and event thresholds are hardcoded | Works for current 3 instruments; would need config for more | Externalize to config file or dbt vars |
 | P3 | No Kubernetes manifests | Single-machine deployment is thesis scope | Out of scope; document as future work |
 | P3 | No structured logging | Plain-text logs are readable for thesis scale | Use Python `logging` with JSON formatter for production |
-| P3 | `mart_latest_prices` full rebuild every 6m | Performant at current data volume | Add incremental strategy if data grows significantly |
+| P3 | `mart_latest_prices` view queries `stg_raw_prices` on every read | Performant at current data volume thanks to 24h optimization window | Consider materialized view or caching if query latency grows |
 
 ### Overall Assessment
 

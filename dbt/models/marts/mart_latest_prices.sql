@@ -1,3 +1,9 @@
+{{
+  config(
+    materialized='view'
+  )
+}}
+
 -- Most recent price per commodity (1 row per instrument).
 -- Used by Grafana "Market Overview" dashboard for live price display.
 --

@@ -57,7 +57,7 @@ This is a portfolio / master's thesis project that demonstrates end-to-end data 
 | Model | Type | Description |
 |-------|------|-------------|
 | `stg_raw_prices` | view | Type casting, timezone handling |
-| `mart_latest_prices` | table | Latest price per instrument |
+| `mart_latest_prices` | view | Latest price per instrument |
 | `mart_minute_last_price` | incremental | Minute-level OHLC statistics |
 | `mart_price_events` | incremental | Significant price changes with per-commodity thresholds |
 | `mart_price_volatility_1h` | incremental | Hourly volatility metrics |
