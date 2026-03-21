@@ -1,6 +1,6 @@
 # Security
 
-The project applies several production-inspired hardening practices, but it is designed as a single-host educational and portfolio system rather than a fully production-grade distributed deployment.
+The project applies several production-inspired hardening practices, but it is designed as a single-host educational system rather than a fully production-grade distributed deployment.
 
 ## Container Hardening
 

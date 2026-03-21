@@ -16,7 +16,7 @@ The system emphasizes reliability through idempotent processing at every layer, 
 
 ## Why This Project
 
-This is a portfolio / master's thesis project that demonstrates end-to-end data engineering beyond a simple ETL script. It covers: event-driven ingestion, micro-batch stream processing, layered idempotency, dead letter queues, data quality testing, observability with alerting, container hardening, and CI/CD — all wired together as a single `make real` deployment.
+This is a master's thesis project that demonstrates end-to-end data engineering beyond a simple ETL script. It covers: event-driven ingestion, micro-batch stream processing, layered idempotency, dead letter queues, data quality testing, observability with alerting, container hardening, and CI/CD — all wired together as a single `make real` deployment.
 
 ## Key Design Decisions
 
@@ -87,7 +87,7 @@ See [Operations Guide](docs/OPERATIONS.md#alert-rules-11-rules) for full alert r
 
 ## Security
 
-The project applies several production-inspired hardening practices (container capability drop, non-root users, read-only rootfs, RBAC with 5 database roles, pre-commit secret scanning, SHA-pinned CI actions), but it is designed as a single-host educational and portfolio system rather than a fully production-grade distributed deployment.
+The project applies several production-inspired hardening practices (container capability drop, non-root users, read-only rootfs, RBAC with 5 database roles, pre-commit secret scanning, SHA-pinned CI actions), but it is designed as a single-host educational system rather than a fully production-grade distributed deployment.
 
 See [Security](docs/SECURITY.md) for full details.
 
