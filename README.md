@@ -9,7 +9,7 @@ Data is ingested every 6 minutes from Twelve Data API and streamed via Kafka. It
 ## Key Features
 
 - Kafka + Spark Structured Streaming architecture
-- Near real-time pipeline (6–12 min latency)
+- Near real-time pipeline (6–11 min latency)
 - Idempotent processing (UUID5 + ON CONFLICT)
 - Dead Letter Queue (DLQ) for invalid events
 - Data quality layer (64 dbt tests)
@@ -70,7 +70,7 @@ Compared to traditional batch ETL, it provides faster feedback loops, continuous
 | **alert-receiver** | Flask webhook (alert ingestion endpoint) | core |
 | **kafka-lag** | Monitors Spark consumer lag | ops |
 | **backup-cron** | pg_dump every 2h, keeps last 360 backups | ops |
-| **retention** | Manual retention utility (backup/fallback path) | ops |
+| **retention** | Manual retention fallback (automated via dbt-scheduler) | ops |
 | **spark** | Interactive Spark shell (debugging) | manual |
 | **dbt** | One-off dbt execution container | manual |
 | **pgadmin** | Database admin UI (port 5050) | dev |

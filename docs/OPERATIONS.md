@@ -11,7 +11,7 @@ If the system is not working correctly, follow this order:
 
 2. **Check API availability:**
    ```sql
-   SELECT status_code, count(*) FROM monitoring.api_calls
+   SELECT http_status, count(*) FROM monitoring.api_calls
    WHERE ts_utc >= now() - interval '15 minutes'
    GROUP BY 1;
    ```
@@ -52,7 +52,7 @@ If the system is not working correctly, follow this order:
 - Check dbt test results:
   ```sql
   SELECT * FROM monitoring.dbt_test_runs
-  ORDER BY run_ts DESC LIMIT 5;
+  ORDER BY ts_utc DESC LIMIT 5;
   ```
 
 ### API returns data but no new events
