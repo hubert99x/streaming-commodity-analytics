@@ -1,5 +1,5 @@
 -- Retention: delete records older than 90 days from all data and monitoring tables.
--- Shared by: dbt-scheduler (automated, every 24h) and retention container (manual).
+-- Shared by: dbt-scheduler (every 24h) and retention daemon (ops profile, every 24h).
 -- After each DELETE, VACUUM reclaims disk space and updates visibility maps
 -- so that the freed pages are available for reuse.
 

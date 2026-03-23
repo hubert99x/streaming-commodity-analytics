@@ -70,7 +70,7 @@ Compared to traditional batch ETL, it provides faster feedback loops, continuous
 | **alert-receiver** | Flask webhook (alert ingestion endpoint) | core |
 | **kafka-lag** | Monitors Spark consumer lag | ops |
 | **backup-cron** | pg_dump every 2h, keeps last 360 backups | ops |
-| **retention** | Manual retention fallback (automated via dbt-scheduler) | ops |
+| **retention** | Retention daemon (90-day cleanup every 24h) | ops |
 | **spark** | Interactive Spark shell (debugging) | manual |
 | **dbt** | One-off dbt execution container | manual |
 | **pgadmin** | Database admin UI (port 5050) | dev |

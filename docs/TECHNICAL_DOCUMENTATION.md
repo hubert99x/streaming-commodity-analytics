@@ -215,7 +215,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 - Health heartbeat: writes timestamp to `/tmp/dbt_scheduler_alive`, checked by Docker health probe with 10-minute tolerance.
 - `dbt test` results parsed from `target/run_results.json` via `jq` and inserted into `monitoring.dbt_test_runs`.
 - 300-second timeout on subprocess execution.
-- **Automated retention:** Deletes records older than 90 days from all data and monitoring tables every 24 hours (configurable via `RETENTION_INTERVAL_SEC`). Replaces the previously manual retention service.
+- **Automated retention:** Deletes records older than 90 days from all data and monitoring tables every 24 hours (configurable via `RETENTION_INTERVAL_SEC`). Runs in parallel with the standalone retention daemon (ops profile); both are idempotent.
 - **Non-root execution:** Runs as UID 1000 (`USER 1000` in Dockerfile). Container hardened with `cap_drop: ALL`.
 
 **Weaknesses:**
@@ -245,13 +245,13 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 
 **Backup (`backup-cron`):** `pg_dump -F c` every 2 hours, keeps last 360 dumps (~30 days). Logs to `monitoring.backup_log`.
 
-**Retention (`retention`):** Manual trigger (restart: "no"). Deletes records older than 90 days from all 7 tables (`raw_prices`, `dead_letter_events`, `alert_events`, `api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log`) and runs `VACUUM` on each table after deletion. The standalone retention container (`ops/retention-image/run_retention.sh`) additionally runs `VACUUM (ANALYZE)` on `raw_prices` on Sundays only.
+**Retention (`retention`):** Long-running daemon (restart: unless-stopped, every 24h). Deletes records older than 90 days from all 7 tables (`raw_prices`, `dead_letter_events`, `alert_events`, `api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log`) via shared `retention.sql`. Additionally runs `VACUUM (ANALYZE)` on `raw_prices` on Sundays only. Interval configurable via `RETENTION_INTERVAL_SEC`.
 
 **Weaknesses:**
 - **Backups are unencrypted.** Stored as plain `pg_dump` files on the host filesystem. No encryption at rest.
 - **No restore testing.** No automated verification that backups can be successfully restored.
 
-**Note:** Retention is now automated via the dbt-scheduler (every 24 hours by default, configurable via `RETENTION_INTERVAL_SEC`). All tables — `raw_prices`, `dead_letter_events`, `alert_events`, `api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log` — are pruned at 90-day TTL. The `dbt_runner` role has been granted DELETE on the relevant tables.
+**Note:** Retention runs in two places: the dbt-scheduler (built-in, every 24h) and the standalone `retention` daemon (ops profile, every 24h). Both execute the same `retention.sql` and are idempotent. The standalone daemon additionally runs `VACUUM (ANALYZE)` on `raw_prices` on Sundays. All tables — `raw_prices`, `dead_letter_events`, `alert_events`, `api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log` — are pruned at 90-day TTL. The `dbt_runner` role has been granted DELETE on the relevant tables.
 
 ---
 

@@ -490,7 +490,7 @@ services:
     restart: unless-stopped
 
   # =========================
-  # Retention (OPS job - manual override; automated via dbt-scheduler every 24h)
+  # Retention (OPS daemon - runs every 24h alongside dbt-scheduler retention)
   # =========================
   retention:
     profiles: ["ops"]
@@ -517,7 +517,7 @@ services:
           cpus: "0.25"
     security_opt:
       - no-new-privileges:true
-    restart: "no"
+    restart: unless-stopped
 
   # =========================
   # Backup (OPS job - run automatically) (daemon)
