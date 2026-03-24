@@ -32,7 +32,7 @@ SELECT * FROM monitoring.pipeline_metrics;
 
 **Check recent API status:**
 ```sql
-SELECT status_code, count(*) AS n
+SELECT http_status, count(*) AS n
 FROM monitoring.api_calls
 WHERE ts_utc >= now() - interval '15 minutes'
 GROUP BY 1

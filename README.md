@@ -65,14 +65,14 @@ Compared to traditional batch ETL, it provides faster feedback loops, continuous
 | **kafka** | Apache Kafka (KRaft mode, 3 partitions) | core |
 | **producer** | Fetches prices from Twelve Data API every 6 min | core |
 | **spark-stream** | Kafka → PostgreSQL via Structured Streaming (trigger 300s) | core |
-| **dbt-scheduler** | `dbt run` every 6m, `dbt test` every 30m, retention every 24h | core |
+| **dbt-scheduler** | `dbt build` every 6m, `dbt test` every 30m, retention every 24h | core |
 | **grafana** | Grafana (dashboards + alerting) | core |
 | **alert-receiver** | Flask webhook (alert ingestion endpoint) | core |
 | **kafka-lag** | Monitors Spark consumer lag | ops |
 | **backup-cron** | pg_dump every 2h, keeps last 360 backups | ops |
 | **retention** | Retention daemon (90-day cleanup every 24h) | ops |
-| **spark** | Interactive Spark shell (debugging) | manual |
-| **dbt** | One-off dbt execution container | manual |
+| **spark** | Interactive Spark shell (debugging, runs `sleep infinity`) | always |
+| **dbt** | One-off dbt execution container | always |
 | **pgadmin** | Database admin UI (port 5050) | dev |
 | **kafka-ui** | Kafka topic browser (port 8080) | dev |
 

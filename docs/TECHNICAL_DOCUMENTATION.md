@@ -171,7 +171,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 **Key behaviors:**
 - **Deterministic event IDs:** UUID5 (DNS namespace + `commodity:ISO_timestamp`). Same commodity+timestamp always produces same ID, preventing semantic duplicates across retries.
 - **FX weekend gating:** XAU/USD and EUR/USD are not fetched Fri 22:00 – Sun 21:59 UTC. BTC runs 24/7.
-- **Three-tier backoff:** Rate limit (429) → fixed backoff; server error (5xx) → exponential backoff with multiplier (1→2→4→...32); other errors → interval-length backoff. All clamped to 15–3600s range (max backoff = 10× polling interval).
+- **Three-tier backoff:** Rate limit (429) → fixed backoff; server error (5xx) → exponential backoff with multiplier (1→2→4→...32); non-server `RuntimeError` → interval-length backoff; generic exceptions → exponential backoff (same multiplier as 5xx). All clamped to 15–3600s range (max backoff = 10× polling interval).
 - **Kafka producer config:** `enable.idempotence=True`, `acks=all`, `retries=10`, `linger.ms=0`.
 - **Pre-publish price bounds validation:** Checks prices against commodity-specific bounds (XAU: 500–15000, BTC: 100–1M, EUR: 0.5–2.0) before publishing to Kafka. Out-of-bounds prices are logged and skipped, preventing pipeline contamination at the source.
 - **API metrics:** Each API call is logged to `monitoring.api_calls` (status code, latency, error message) via a lazy Postgres connection.
@@ -381,7 +381,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 
 ### Data Quality Tests (64)
 
-- **Staging:** not_null and unique on event_id; accepted_values on commodity and currency; freshness bounds (`event_ts` within -2h to +1min of `ingest_ts`).
+- **Staging:** not_null and unique on event_id; accepted_values on commodity and currency; freshness bounds (`event_ts` within -24h to +1min of `ingest_ts`).
 - **Marts:** unique combination checks on composite keys; price sanity (> 0, min ≤ max); event_type accepted values.
 - **Custom SQL test:** `test_price_jump.sql` — detects unrealistic minute-to-minute jumps per commodity (EUR >5%, XAU >10%, BTC >30%).
 
