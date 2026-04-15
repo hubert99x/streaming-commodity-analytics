@@ -1,13 +1,15 @@
-FROM ghcr.io/dbt-labs/dbt-postgres:1.9.0
+# dbt-scheduler image — built on a clean python:3.12-slim (Debian bookworm)
+# instead of dbt-labs/dbt-postgres to avoid stale Debian bullseye CVEs in the
+# upstream image and to keep the base on a currently-supported Debian release.
+FROM python:3.12-slim
 
-USER root
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Update base OS packages first, then install only required runtime tools.
 RUN apt-get update \
  && apt-get upgrade -y \
- && apt-get dist-upgrade -y \
  && apt-get install -y --no-install-recommends \
       bash \
       jq \
@@ -16,7 +18,22 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
+# dbt deps pinned to the same versions as the upstream dbt-labs/dbt-postgres:1.9.0
+# image to avoid resolver picking newer transitive deps with conflicting protobuf
+# constraints. Bump these together when upgrading dbt-postgres.
+RUN pip install --no-cache-dir \
+      "dbt-core==1.9.0" \
+      "dbt-adapters==1.10.4" \
+      "dbt-common==1.14.0" \
+      "dbt-postgres==1.9.0"
+
+# deepdiff 8.6.2 is installed separately with --upgrade so pip overrides
+# dbt-common's deepdiff<8.0 constraint (the project's scheduler relies on the
+# 8.x API). Same approach as the upstream Dockerfile.
 RUN pip install --no-cache-dir --upgrade "deepdiff==8.6.2"
+
+RUN groupadd -r -g 1000 dbtuser \
+ && useradd  -r -u 1000 -g dbtuser -d /dbt -s /bin/bash dbtuser
 
 WORKDIR /dbt
 
