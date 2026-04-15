@@ -53,8 +53,8 @@ The system is a single-machine, Docker Compose-based streaming analytics pipelin
 | spark-stream | apache/spark:3.5.1 | always | 1GB / 1.5 CPU |
 | spark (debug) | apache/spark:3.5.1 | always | 1GB / 1.0 CPU |
 | producer | python:3.11-slim (custom) | always | 128MB / 0.25 CPU |
-| dbt-scheduler | dbt-postgres:1.9.0 (custom) | always | 256MB / 0.5 CPU |
-| dbt (manual) | dbt-postgres:1.9.0 | always | 256MB / 0.5 CPU |
+| dbt-scheduler | python:3.12-slim (custom, dbt-postgres 1.9.0) | always | 256MB / 0.5 CPU |
+| dbt (manual) | python:3.12-slim (custom, dbt-postgres 1.9.0) | always | 256MB / 0.5 CPU |
 | grafana | grafana/grafana:11.0.0 | always | 256MB / 0.5 CPU |
 | alert-receiver | python:3.12-slim (custom) | always | 128MB / 0.25 CPU |
 | pgadmin | dpage/pgadmin4:8.14 | dev | 256MB / 0.5 CPU |

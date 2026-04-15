@@ -413,7 +413,10 @@ services:
   # dbt (manual / on-demand)
   # =========================
   dbt:
-    image: ghcr.io/dbt-labs/dbt-postgres:1.9.0
+    # Reuse the dbt-scheduler image so manual `make dbt-*` commands run on the
+    # same dbt environment as the scheduler (no version drift, single CVE surface).
+    build:
+      context: ./ops/dbt-scheduler
     depends_on:
       postgres:
         condition: service_healthy
