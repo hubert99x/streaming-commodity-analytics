@@ -33,8 +33,13 @@ Operational layer including alerts, metrics, backups, and system health monitori
 
 Example Grafana dashboards showing near real-time prices, pipeline health, and data quality metrics:
 
+**Market Overview**
 ![Market Overview](docs/grafana_market_overview.png)
+
+**Market Analysis**
 ![Market Analysis](docs/grafana_market_analysis.png)
+
+**Pipeline & Data Quality**
 ![Pipeline & Data Quality](docs/grafana_pipeline.png)
 
 ## Why This Project
