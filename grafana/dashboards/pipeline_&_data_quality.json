@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 33,
+  "id": 50,
   "links": [],
   "panels": [
     {
@@ -186,11 +186,11 @@
               },
               {
                 "color": "yellow",
-                "value": 400
+                "value": 650
               },
               {
                 "color": "red",
-                "value": 700
+                "value": 900
               }
             ]
           },
@@ -1387,7 +1387,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\r\ndate_trunc('minute', ingest_ts) - \r\n(interval '1 minute' * (extract(minute from ingest_ts)::int % 6)) AS time,\r\ncount(*) AS events_per_cycle\r\nFROM public.raw_prices\r\nWHERE ingest_ts > now() - interval '60 minutes'\r\nGROUP BY 1\r\nORDER BY 1;",
+          "rawSql": "SELECT\r\n  date_trunc('minute', event_ts) - \r\n  (interval '1 minute' * (extract(minute from event_ts)::int % 6)) AS time,\r\n  count(*) AS events_per_cycle\r\nFROM public.raw_prices\r\nWHERE event_ts > now() - interval '60 minutes'\r\nGROUP BY 1\r\nORDER BY 1;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -1487,7 +1487,7 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 7,
+        "w": 6,
         "x": 4,
         "y": 25
       },
@@ -1581,8 +1581,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 7,
-        "x": 14,
+        "w": 6,
+        "x": 15,
         "y": 25
       },
       "id": 30,
@@ -1649,7 +1649,7 @@
     "list": []
   },
   "time": {
-    "from": "now-12h",
+    "from": "now-6h",
     "to": "now"
   },
   "timeRangeUpdatedDuringEditOrView": false,

@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 35,
+  "id": 51,
   "links": [],
   "panels": [
     {
@@ -335,6 +335,10 @@
                 "value": {
                   "type": "color-text"
                 }
+              },
+              {
+                "id": "decimals",
+                "value": 2
               }
             ]
           }
@@ -464,7 +468,7 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 2,
+            "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -505,7 +509,38 @@
           },
           "unit": "percent"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "BTC/USD"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "XAU/USD"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 15,
@@ -537,9 +572,9 @@
             "uid": "postgres"
           },
           "editorMode": "code",
-          "format": "table",
+          "format": "time_series",
           "rawQuery": true,
-          "rawSql": "select\r\n    hour_bucket as \"time\",\r\n    symbol,\r\n    round(range_pct::numeric,2) as \"Range\"\r\nfrom analytics.mart_price_volatility_1h\r\norder by 1,2;",
+          "rawSql": "SELECT\r\n    hour_bucket AS \"time\",\r\n    round(range_pct::numeric, 2) AS \"Range\",\r\n    symbol AS \"metric\"\r\nFROM analytics.mart_price_volatility_1h\r\nORDER BY 1, 2;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -788,7 +823,7 @@
     "list": []
   },
   "time": {
-    "from": "now-24h",
+    "from": "now-6d",
     "to": "now"
   },
   "timeRangeUpdatedDuringEditOrView": false,
