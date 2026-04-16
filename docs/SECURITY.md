@@ -24,7 +24,7 @@ These controls reduce the attack surface and limit the impact of a compromised c
 | Read-only rootfs | producer, alert-receiver, kafka-lag |
 | Non-root users | Producer (appuser), alert-receiver (appuser), kafka-lag (appuser), Spark (uid 185), dbt-scheduler (uid 1000) |
 | tmpfs /tmp | Producer, alert-receiver (no persistent writable disk) |
-| Slim base images | python:3.11-slim, python:3.12-slim |
+| Slim base images | python:3.12-slim |
 | Port binding | All external ports bound to `127.0.0.1` (localhost only) |
 
 ## Authentication & Access
