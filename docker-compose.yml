@@ -127,7 +127,10 @@ services:
   # Kafka UI (DEV only)
   # =========================
   kafka-ui:
-    image: provectuslabs/kafka-ui:v0.7.2
+    # kafbat/kafka-ui is the actively maintained community fork of the
+    # now-dormant provectuslabs/kafka-ui. Env vars (KAFKA_CLUSTERS_0_*)
+    # are drop-in compatible with the Provectus image.
+    image: kafbat/kafka-ui:v1.4.2
     profiles: ["dev"]
     depends_on:
       kafka:
