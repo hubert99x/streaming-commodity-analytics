@@ -55,7 +55,7 @@ jobs:
               -v "${TRIVYIGNORE}:/trivyignore:ro" \
               aquasec/trivy:0.69.3 \
               image --ignore-unfixed --severity HIGH,CRITICAL \
-              --vuln-type os,library \
+              --pkg-types os,library \
               --ignorefile /trivyignore --exit-code 1 "${img}"
             echo "::endgroup::"
           done
