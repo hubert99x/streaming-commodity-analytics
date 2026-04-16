@@ -49,7 +49,7 @@ The system is a single-machine, Docker Compose-based streaming analytics pipelin
 | Service | Image | Profile | Resource Limits |
 |---------|-------|---------|-----------------|
 | postgres | postgres:16.13 | always | 512MB / 1.0 CPU |
-| kafka | confluentinc/cp-kafka:7.6.1 (KRaft) | always | 1GB / 1.0 CPU |
+| kafka | confluentinc/cp-kafka:7.7.8 (KRaft) | always | 1GB / 1.0 CPU |
 | spark-stream | apache/spark:3.5.8 | always | 1GB / 1.5 CPU |
 | spark (debug) | apache/spark:3.5.8 | always | 1GB / 1.0 CPU |
 | producer | python:3.12-slim (custom) | always | 128MB / 0.25 CPU |
