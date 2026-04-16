@@ -55,7 +55,7 @@ The system is a single-machine, Docker Compose-based streaming analytics pipelin
 | producer | python:3.12-slim (custom) | always | 128MB / 0.25 CPU |
 | dbt-scheduler | python:3.12-slim (custom, dbt-postgres 1.9.1) | always | 256MB / 0.5 CPU |
 | dbt (manual) | python:3.12-slim (custom, dbt-postgres 1.9.1) | always | 256MB / 0.5 CPU |
-| grafana | grafana/grafana:11.0.0 | always | 256MB / 0.5 CPU |
+| grafana | grafana/grafana:11.6.14 | always | 256MB / 0.5 CPU |
 | alert-receiver | python:3.12-slim (custom) | always | 128MB / 0.25 CPU |
 | pgadmin | dpage/pgadmin4:8.14 | dev | 256MB / 0.5 CPU |
 | kafka-ui | provectuslabs/kafka-ui:v0.7.2 | dev | 256MB / 0.5 CPU |
