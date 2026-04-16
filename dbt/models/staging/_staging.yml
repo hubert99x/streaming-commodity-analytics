@@ -7,9 +7,11 @@ models:
     # tests at model level (row-level constraints)
     data_tests:
       - dbt_utils.expression_is_true:
-          expression: "event_ts <= ingest_ts + interval '1 minute'"
+          arguments:
+            expression: "event_ts <= ingest_ts + interval '1 minute'"
       - dbt_utils.expression_is_true:
-          expression: "event_ts >= ingest_ts - interval '24 hours'"
+          arguments:
+            expression: "event_ts >= ingest_ts - interval '24 hours'"
 
     columns:
       - name: event_id
@@ -23,7 +25,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ["gold", "bitcoin", "eurusd"]
+              arguments:
+                values: ["gold", "bitcoin", "eurusd"]
 
       - name: symbol
         description: "Market symbol"
@@ -40,7 +43,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ["USD"]
+              arguments:
+                values: ["USD"]
 
       - name: event_ts
         description: "Event time (UTC)"

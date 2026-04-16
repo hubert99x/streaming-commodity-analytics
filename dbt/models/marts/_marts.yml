@@ -8,9 +8,11 @@ models:
     description: "Latest known price per commodity + symbol (1 row per instrument). Built from stg_raw_prices."
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: ["commodity", "symbol"]
+          arguments:
+            combination_of_columns: ["commodity", "symbol"]
       - dbt_utils.expression_is_true:
-          expression: "last_price > 0"
+          arguments:
+            expression: "last_price > 0"
 
     columns:
       - name: commodity
@@ -18,7 +20,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ["gold", "bitcoin", "eurusd"]
+              arguments:
+                values: ["gold", "bitcoin", "eurusd"]
 
       - name: symbol
         description: "Market symbol (XAU/USD, BTC/USD, EUR/USD)."
@@ -40,7 +43,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ["USD"]
+              arguments:
+                values: ["USD"]
 
       - name: source
         description: "Data source identifier (e.g., twelvedata_rest)."
@@ -51,17 +55,23 @@ models:
     description: "Minute-level aggregated statistics per commodity + symbol (minute bucket)."
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: ["commodity", "symbol", "minute_bucket"]
+          arguments:
+            combination_of_columns: ["commodity", "symbol", "minute_bucket"]
       - dbt_utils.expression_is_true:
-          expression: "min_price <= max_price"
+          arguments:
+            expression: "min_price <= max_price"
       - dbt_utils.expression_is_true:
-          expression: "last_price > 0"
+          arguments:
+            expression: "last_price > 0"
       - dbt_utils.expression_is_true:
-          expression: "min_price > 0"
+          arguments:
+            expression: "min_price > 0"
       - dbt_utils.expression_is_true:
-          expression: "max_price > 0"
+          arguments:
+            expression: "max_price > 0"
       - dbt_utils.expression_is_true:
-          expression: "n >= 1"
+          arguments:
+            expression: "n >= 1"
 
     columns:
       - name: commodity
@@ -69,7 +79,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ["gold", "bitcoin", "eurusd"]
+              arguments:
+                values: ["gold", "bitcoin", "eurusd"]
 
       - name: symbol
         description: "Market symbol."
@@ -105,7 +116,8 @@ models:
     description: "Detected significant price changes between consecutive observations."
     data_tests:
       - dbt_utils.expression_is_true:
-          expression: "price_change_pct is not null"
+          arguments:
+            expression: "price_change_pct is not null"
 
     columns:
       - name: commodity
@@ -113,7 +125,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ["gold", "bitcoin", "eurusd"]
+              arguments:
+                values: ["gold", "bitcoin", "eurusd"]
 
       - name: symbol
         description: "Market symbol."
@@ -155,17 +168,21 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['MEDIUM_MOVE', 'LARGE_MOVE', 'EXTREME_MOVE']
+              arguments:
+                values: ['MEDIUM_MOVE', 'LARGE_MOVE', 'EXTREME_MOVE']
 
   - name: mart_price_volatility_1h
     description: "Hourly volatility metrics based on stream observations."
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: ["commodity", "symbol", "hour_bucket"]
+          arguments:
+            combination_of_columns: ["commodity", "symbol", "hour_bucket"]
       - dbt_utils.expression_is_true:
-          expression: "observations_count >= 1"
+          arguments:
+            expression: "observations_count >= 1"
       - dbt_utils.expression_is_true:
-          expression: "min_price <= max_price"
+          arguments:
+            expression: "min_price <= max_price"
 
     columns:
       - name: commodity
@@ -173,7 +190,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ["gold", "bitcoin", "eurusd"]
+              arguments:
+                values: ["gold", "bitcoin", "eurusd"]
 
       - name: symbol
         description: "Market symbol."

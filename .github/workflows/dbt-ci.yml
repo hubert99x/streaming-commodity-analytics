@@ -34,9 +34,16 @@ jobs:
           python-version: "3.12"
 
       - name: Install dbt and PostgreSQL client
+        # Pin the same dbt stack as the in-cluster scheduler
+        # (ops/dbt-scheduler/Dockerfile) so CI validates against the exact
+        # versions that run in production, not whatever pip resolves latest.
         run: |
           python -m pip install --upgrade pip
-          python -m pip install dbt-postgres==1.9.1
+          python -m pip install \
+            "dbt-core==1.9.10" \
+            "dbt-adapters==1.22.10" \
+            "dbt-common==1.37.3" \
+            "dbt-postgres==1.9.1"
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 

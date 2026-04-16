@@ -9,9 +9,9 @@ packages-install-path: "/tmp/dbt_packages"
 models:
   commodity_dbt:
     staging:
-      materialized: view
+      +materialized: view
     marts:
-      materialized: table
+      +materialized: table
       mart_minute_last_price:
         +post-hook:
           - "CREATE INDEX IF NOT EXISTS idx_mart_minute_last_price_symbol_bucket ON {{ this }} (symbol, minute_bucket DESC)"
