@@ -24,9 +24,9 @@ WHERE ts_utc < now() - interval '90 days';
 VACUUM monitoring.kafka_lag;
 
 DELETE FROM monitoring.dbt_test_runs
-WHERE ts_utc < now() - interval '90 days';
+WHERE run_ts_utc < now() - interval '90 days';
 VACUUM monitoring.dbt_test_runs;
 
 DELETE FROM monitoring.backup_log
-WHERE ts_utc < now() - interval '90 days';
+WHERE backup_ts < now() - interval '90 days';
 VACUUM monitoring.backup_log;

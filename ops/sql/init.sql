@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS monitoring.alert_events (
 -- Feeds the Grafana "dbt Test Runs" panel and "DBT Pass Rate" stat.
 CREATE TABLE IF NOT EXISTS monitoring.dbt_test_runs (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    ts_utc      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    run_ts_utc  TIMESTAMPTZ NOT NULL DEFAULT now(),
     environment TEXT,
     status      TEXT,
     total       INTEGER,
@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS monitoring.dbt_test_runs (
 -- Feeds the Grafana "Backup Freshness" panel.
 CREATE TABLE IF NOT EXISTS monitoring.backup_log (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    ts_utc          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    backup_ts       TIMESTAMPTZ NOT NULL DEFAULT now(),
     file_name       TEXT,
     file_size_bytes BIGINT,
     status          TEXT,

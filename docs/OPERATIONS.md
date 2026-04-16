@@ -52,7 +52,7 @@ If the system is not working correctly, follow this order:
 - Check dbt test results:
   ```sql
   SELECT * FROM monitoring.dbt_test_runs
-  ORDER BY ts_utc DESC LIMIT 5;
+  ORDER BY run_ts_utc DESC LIMIT 5;
   ```
 
 ### API returns data but no new events

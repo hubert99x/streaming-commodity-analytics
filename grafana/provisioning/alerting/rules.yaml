@@ -405,7 +405,7 @@ groups:
               rawSql: |
                 SELECT count(*)::bigint AS v
                 FROM monitoring.dbt_test_runs
-                WHERE ts_utc >= now() - interval '35 minutes'
+                WHERE run_ts_utc >= now() - interval '35 minutes'
                   AND status = 'FAIL';
 
           - refId: B
@@ -512,7 +512,7 @@ groups:
               maxDataPoints: 1
               rawSql: |
                 SELECT COALESCE(
-                  EXTRACT(EPOCH FROM (now() - MAX(ts_utc)))::bigint,
+                  EXTRACT(EPOCH FROM (now() - MAX(backup_ts)))::bigint,
                   999999
                 ) AS v
                 FROM monitoring.backup_log
