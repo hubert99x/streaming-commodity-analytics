@@ -8,17 +8,17 @@ groups:
     rules:
 
       # ======================================================
-      # CRITICAL: No new ingest for > 7 minutes (420s)
+      # CRITICAL: No new ingest for > 13 minutes (780s)
       # ======================================================
       - uid: stale_ingest_7m
-        title: Time Since Last Ingest > 7m
+        title: Time Since Last Ingest > 13m
         condition: C
         for: 2m
         noDataState: Alerting
         execErrState: Alerting
         annotations:
-          summary: "No new ingested rows for more than 7 minutes"
-          description: "Pipeline health: time_since_last_ingest_seconds > 420 for 2 minutes."
+          summary: "No new ingested rows for more than 13 minutes"
+          description: "Pipeline health: time_since_last_ingest_seconds > 780 for 2 minutes."
         labels:
           severity: critical
           component: pipeline
@@ -52,7 +52,7 @@ groups:
               conditions:
                 - evaluator:
                     type: gt
-                    params: [420]
+                    params: [780]
                   operator:
                     type: and
                   reducer:

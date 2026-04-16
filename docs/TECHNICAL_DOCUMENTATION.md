@@ -398,7 +398,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 
 | Alert | Condition | Severity | Fires After |
 |-------|-----------|----------|-------------|
-| Stale Ingest (>7m) | `time_since_last_ingest_seconds > 420` | CRITICAL | 2 min |
+| Stale Ingest (>13m) | `time_since_last_ingest_seconds > 780` | CRITICAL | 2 min |
 | BTC Events Low (15m) | `btc_events_last_15m < 2` | WARNING | 2 min |
 | API Errors ≥1 (18m) | `errors_18m >= 1` | WARNING | 2 min |
 | API Errors ≥3 (18m) | `errors_18m >= 3` | CRITICAL | 2 min |

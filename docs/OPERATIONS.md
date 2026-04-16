@@ -210,7 +210,7 @@ Severity levels:
 
 | Rule | Severity | Condition |
 |------|----------|-----------|
-| Time Since Last Ingest > 7m | critical | No new rows in `raw_prices` for 420s |
+| Time Since Last Ingest > 13m | critical | No new rows in `raw_prices` for 780s |
 | BTC events (15m) < 2 | warning | BTC is 24/7 — fewer than 2 events means pipeline stall |
 | API errors (18m) >= 1 | warning | Any API error in last 3 poll cycles |
 | API errors (18m) >= 3 | critical | Sustained API failures |
