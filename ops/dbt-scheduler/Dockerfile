@@ -22,10 +22,10 @@ RUN apt-get update \
 # image to avoid resolver picking newer transitive deps with conflicting protobuf
 # constraints. Bump these together when upgrading dbt-postgres.
 RUN pip install --no-cache-dir \
-      "dbt-core==1.9.0" \
+      "dbt-core==1.9.10" \
       "dbt-adapters==1.10.4" \
       "dbt-common==1.14.0" \
-      "dbt-postgres==1.9.0"
+      "dbt-postgres==1.9.1"
 
 # deepdiff 8.6.2 is installed separately with --upgrade so pip overrides
 # dbt-common's deepdiff<8.0 constraint (the project's scheduler relies on the
