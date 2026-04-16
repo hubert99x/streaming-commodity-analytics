@@ -28,7 +28,7 @@ The system is a single-machine, Docker Compose-based streaming analytics pipelin
 ```
 ┌──────────────┐     ┌─────────────┐     ┌──────────────────┐     ┌──────────────┐
 │  Twelve Data │     │    Kafka    │     │  Spark Structured│     │  PostgreSQL  │
-│   REST API   │────▶│  (KRaft)   │────▶│    Streaming     │────▶│   16.6       │
+│   REST API   │────▶│  (KRaft)   │────▶│    Streaming     │────▶│   16.13      │
 │              │     │ 3 partitions│     │                  │     │              │
 └──────────────┘     └─────────────┘     └──────────────────┘     └──────┬───────┘
        ▲                                                                  │
@@ -48,7 +48,7 @@ The system is a single-machine, Docker Compose-based streaming analytics pipelin
 
 | Service | Image | Profile | Resource Limits |
 |---------|-------|---------|-----------------|
-| postgres | postgres:16.6 | always | 512MB / 1.0 CPU |
+| postgres | postgres:16.13 | always | 512MB / 1.0 CPU |
 | kafka | confluentinc/cp-kafka:7.6.1 (KRaft) | always | 1GB / 1.0 CPU |
 | spark-stream | apache/spark:3.5.1 | always | 1GB / 1.5 CPU |
 | spark (debug) | apache/spark:3.5.1 | always | 1GB / 1.0 CPU |
@@ -60,8 +60,8 @@ The system is a single-machine, Docker Compose-based streaming analytics pipelin
 | pgadmin | dpage/pgadmin4:8.14 | dev | 256MB / 0.5 CPU |
 | kafka-ui | provectuslabs/kafka-ui:v0.7.2 | dev | 256MB / 0.5 CPU |
 | kafka-lag | python:3.12-slim (custom) | ops | 128MB / 0.25 CPU |
-| retention | postgres:16.6 (custom) | ops | 128MB / 0.25 CPU |
-| backup-cron | postgres:16.6 | ops | 256MB / 0.5 CPU |
+| retention | postgres:16.13 (custom) | ops | 128MB / 0.25 CPU |
+| backup-cron | postgres:16.13 | ops | 256MB / 0.5 CPU |
 
 ### Network Topology
 

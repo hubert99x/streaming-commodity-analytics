@@ -6,7 +6,7 @@ services:
   # PostgreSQL
   # =========================
   postgres:
-    image: postgres:16.6
+    image: postgres:16.13
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -527,7 +527,7 @@ services:
   # =========================
   backup-cron:
     profiles: ["ops"]
-    image: postgres:16.6
+    image: postgres:16.13
     depends_on:
       postgres:
         condition: service_healthy

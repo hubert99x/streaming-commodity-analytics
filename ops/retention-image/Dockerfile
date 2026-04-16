@@ -13,7 +13,7 @@ RUN git clone https://github.com/tianon/gosu.git . \
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/gosu .
 
 # Stage 2: final retention image
-FROM postgres:16.6
+FROM postgres:16.13
 
 RUN apt-get update \
  && apt-get upgrade -y \
