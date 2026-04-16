@@ -355,7 +355,7 @@ services:
             --conf spark.driver.maxResultSize=128m \
             --conf spark.sql.session.timeZone=UTC \
             --conf spark.jars.ivy=/home/spark/.ivy2 \
-            --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgresql:postgresql:42.7.3 \
+            --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgresql:postgresql:42.7.10 \
             /opt/spark-app/stream_to_postgres.py
     healthcheck:
       test: ["CMD-SHELL", "ps aux | grep -q '[s]park-submit' && find /home/spark/checkpoints/raw_prices -maxdepth 1 -mmin -10 | grep -q ."]
