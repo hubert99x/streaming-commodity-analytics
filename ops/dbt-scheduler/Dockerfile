@@ -1,7 +1,7 @@
-# dbt-scheduler image — built on a clean python:3.12-slim (Debian bookworm)
+# dbt-scheduler image — built on a clean python:3.13-slim (Debian trixie)
 # instead of dbt-labs/dbt-postgres to avoid stale Debian bullseye CVEs in the
 # upstream image and to keep the base on a currently-supported Debian release.
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -18,14 +18,14 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-# dbt deps pinned to the same versions as the upstream dbt-labs/dbt-postgres:1.9.0
-# image to avoid resolver picking newer transitive deps with conflicting protobuf
-# constraints. Bump these together when upgrading dbt-postgres.
+# dbt 1.10 is the current LTS line. dbt-adapters / dbt-common stay on
+# the same versions as before (both compatible with 1.10.x). Bump these
+# together to avoid resolver picking incompatible transitive deps.
 RUN pip install --no-cache-dir \
-      "dbt-core==1.9.10" \
+      "dbt-core==1.10.9" \
       "dbt-adapters==1.22.10" \
       "dbt-common==1.37.3" \
-      "dbt-postgres==1.9.1"
+      "dbt-postgres==1.10.0"
 
 # deepdiff 8.6.2 is installed separately with --upgrade so pip overrides
 # dbt-common's deepdiff<8.0 constraint (the project's scheduler relies on the
