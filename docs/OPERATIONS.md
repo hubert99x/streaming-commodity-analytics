@@ -211,7 +211,7 @@ Severity levels:
 | Rule | Severity | Condition |
 |------|----------|-----------|
 | Time Since Last Ingest > 13m | critical | No new rows in `raw_prices` for 780s |
-| BTC events (15m) < 2 | warning | BTC is 24/7 — fewer than 2 events means pipeline stall |
+| BTC events (20m) < 2 | warning | BTC is 24/7 — fewer than 2 events means pipeline stall |
 | API errors (18m) >= 1 | warning | Any API error in last 3 poll cycles |
 | API errors (18m) >= 3 | critical | Sustained API failures |
 | DLQ events (15m) > 0 | warning | Malformed records detected |
@@ -220,7 +220,7 @@ Severity levels:
 | Kafka lag > 500 | critical | Severe backlog |
 | Kafka partition lag > 30 | warning | Single stuck partition (may be masked by healthy total lag) |
 | No backup in 25h | warning | No successful backup in `backup_log` for >25 hours |
-| Stale mart_latest_prices (>15m) | warning | Analytics mart not refreshed in >15 minutes |
+| Stale mart_latest_prices (>20m) | warning | Analytics mart not refreshed in >20 minutes |
 
 ## Grafana Dashboards
 

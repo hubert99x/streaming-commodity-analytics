@@ -399,7 +399,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 | Alert | Condition | Severity | Fires After |
 |-------|-----------|----------|-------------|
 | Stale Ingest (>13m) | `time_since_last_ingest_seconds > 780` | CRITICAL | 2 min |
-| BTC Events Low (15m) | `btc_events_last_15m < 2` | WARNING | 2 min |
+| BTC Events Low (20m) | `btc_events_last_20m < 2` | WARNING | 2 min |
 | API Errors ≥1 (18m) | `errors_18m >= 1` | WARNING | 2 min |
 | API Errors ≥3 (18m) | `errors_18m >= 3` | CRITICAL | 2 min |
 | DLQ Events (15m) | DLQ count > 0 in 15m window | WARNING | 2 min |
@@ -408,7 +408,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 | Kafka Lag >500 | `total_lag > 500` | CRITICAL | 2 min |
 | Kafka Partition Lag >30 | `max_partition_lag > 30` | WARNING | 2 min |
 | No Backup in 25h | No `status='OK'` row in `backup_log` for >25h | WARNING | 2 min |
-| Stale mart_latest_prices | `last_timestamp` older than 15 minutes | WARNING | 2 min |
+| Stale mart_latest_prices | `last_timestamp` older than 20 minutes | WARNING | 2 min |
 
 **Routing:** Critical and warning alerts → `postgres-webhook` contact point → alert-receiver → `monitoring.alert_events`.
 
@@ -416,7 +416,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 
 ### Monitoring Views (materialized as SQL views)
 
-- **`pipeline_metrics`:** Single-row summary with `time_since_last_ingest_seconds`, `events_last_6m`, `btc_events_last_15m`.
+- **`pipeline_metrics`:** Single-row summary with `time_since_last_ingest_seconds`, `events_last_6m`, `btc_events_last_20m`.
 - **`api_metrics_18m`:** Rolling 18-minute API success rate.
 - **`kafka_lag_latest`:** Latest lag per consumer group via `DISTINCT ON`.
 

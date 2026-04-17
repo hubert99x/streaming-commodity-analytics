@@ -60,17 +60,17 @@ groups:
                   type: query
 
       # ======================================================
-      # WARNING: BTC heartbeat (last 15m) < 2
+      # WARNING: BTC heartbeat (last 20m) < 2
       # ======================================================
       - uid: btc_events_last_15m_low
-        title: BTC events (last 15m) < 2
+        title: BTC events (last 20m) < 2
         condition: C
         for: 2m
         noDataState: Alerting
         execErrState: Alerting
         annotations:
-          summary: "Too few BTC events in the last 15 minutes"
-          description: "BTC 24/7 heartbeat. Expected at least 2 events in the last 15 minutes. Fires when btc_events_last_15m < 2 for 2 minutes."
+          summary: "Too few BTC events in the last 20 minutes"
+          description: "BTC 24/7 heartbeat. Expected at least 2 events in the last 20 minutes. Fires when btc_events_last_20m < 2 for 2 minutes."
         labels:
           severity: warning
           component: pipeline
@@ -86,7 +86,7 @@ groups:
               intervalMs: 1000
               maxDataPoints: 1
               rawSql: |
-                SELECT COALESCE(btc_events_last_15m, 0) AS v
+                SELECT COALESCE(btc_events_last_20m, 0) AS v
                 FROM monitoring.pipeline_metrics;
 
           - refId: B
@@ -542,17 +542,17 @@ groups:
                   type: query
 
       # ======================================================
-      # WARNING: mart_latest_prices stale (> 15 min)
+      # WARNING: mart_latest_prices stale (> 20 min)
       # ======================================================
       - uid: mart_latest_prices_stale_15m
-        title: "[WARN] Stale mart_latest_prices (>15m)"
+        title: "[WARN] Stale mart_latest_prices (>20m)"
         condition: C
         for: 2m
         noDataState: Alerting
         execErrState: Alerting
         annotations:
-          summary: "mart_latest_prices has not been refreshed in more than 15 minutes"
-          description: "Analytics freshness: the newest last_timestamp in analytics.mart_latest_prices is older than 15 minutes. This may indicate dbt failures or upstream pipeline stall."
+          summary: "mart_latest_prices has not been refreshed in more than 20 minutes"
+          description: "Analytics freshness: the newest last_timestamp in analytics.mart_latest_prices is older than 20 minutes. This may indicate dbt failures or upstream pipeline stall."
         labels:
           severity: warning
           component: dbt
@@ -589,7 +589,7 @@ groups:
               conditions:
                 - evaluator:
                     type: gt
-                    params: [900]
+                    params: [1200]
                   operator:
                     type: and
                   reducer:

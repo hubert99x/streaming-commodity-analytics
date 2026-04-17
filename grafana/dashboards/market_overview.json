@@ -1931,11 +1931,11 @@
               },
               {
                 "color": "#EAB839",
-                "value": 600
+                "value": 1000
               },
               {
                 "color": "red",
-                "value": 1200
+                "value": 3000
               }
             ]
           },

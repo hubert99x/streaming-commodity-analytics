@@ -138,8 +138,8 @@ SELECT
         AS time_since_last_ingest_seconds,
     COUNT(*) FILTER (WHERE ingest_ts >= now() - interval '6 minutes')
         AS events_last_6m,
-    COUNT(*) FILTER (WHERE ingest_ts >= now() - interval '15 minutes' AND commodity = 'bitcoin')
-        AS btc_events_last_15m
+    COUNT(*) FILTER (WHERE ingest_ts >= now() - interval '20 minutes' AND commodity = 'bitcoin')
+        AS btc_events_last_20m
 FROM public.raw_prices;
 
 -- API error metrics over the last 18 minutes (alert threshold window)
