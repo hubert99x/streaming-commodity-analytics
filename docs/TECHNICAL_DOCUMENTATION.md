@@ -49,17 +49,17 @@ The system is a single-machine, Docker Compose-based streaming analytics pipelin
 | Service | Image | Profile | Resource Limits |
 |---------|-------|---------|-----------------|
 | postgres | postgres:16.13 | always | 512MB / 1.0 CPU |
-| kafka | confluentinc/cp-kafka:7.7.8 (KRaft) | always | 1GB / 1.0 CPU |
-| spark-stream | apache/spark:3.5.8 | always | 1GB / 1.5 CPU |
-| spark (debug) | apache/spark:3.5.8 | always | 1GB / 1.0 CPU |
-| producer | python:3.12-slim (custom) | always | 128MB / 0.25 CPU |
-| dbt-scheduler | python:3.12-slim (custom, dbt-postgres 1.9.1) | always | 256MB / 0.5 CPU |
-| dbt (manual) | python:3.12-slim (custom, dbt-postgres 1.9.1) | always | 256MB / 0.5 CPU |
-| grafana | grafana/grafana:11.6.14 | always | 256MB / 0.5 CPU |
-| alert-receiver | python:3.12-slim (custom) | always | 128MB / 0.25 CPU |
-| pgadmin | dpage/pgadmin4:8.14 | dev | 256MB / 0.5 CPU |
-| kafka-ui | provectuslabs/kafka-ui:v0.7.2 | dev | 256MB / 0.5 CPU |
-| kafka-lag | python:3.12-slim (custom) | ops | 128MB / 0.25 CPU |
+| kafka | confluentinc/cp-kafka:7.9.6 (KRaft) | always | 1GB / 1.0 CPU |
+| spark-stream | apache/spark:4.1.1 | always | 1GB / 1.5 CPU |
+| spark (debug) | apache/spark:4.1.1 | always | 1GB / 1.0 CPU |
+| producer | python:3.13-slim (custom) | always | 128MB / 0.25 CPU |
+| dbt-scheduler | python:3.13-slim (custom, dbt-postgres 1.10.0) | always | 256MB / 0.5 CPU |
+| dbt (manual) | python:3.13-slim (custom, dbt-postgres 1.10.0) | always | 256MB / 0.5 CPU |
+| grafana | grafana/grafana:11.6.14-security-01 | always | 256MB / 0.5 CPU |
+| alert-receiver | python:3.13-slim (custom) | always | 128MB / 0.25 CPU |
+| pgadmin | dpage/pgadmin4:9.14 | dev | 256MB / 0.5 CPU |
+| kafka-ui | kafbat/kafka-ui:v1.4.2 | dev | 256MB / 0.5 CPU |
+| kafka-lag | python:3.13-slim (custom) | ops | 128MB / 0.25 CPU |
 | retention | postgres:16.13 (custom) | ops | 128MB / 0.25 CPU |
 | backup-cron | postgres:16.13 | ops | 256MB / 0.5 CPU |
 
@@ -444,7 +444,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 | Non-root users | Producer (appuser), alert-receiver (appuser), kafka-lag (appuser), Spark (uid 185 via setpriv), dbt-scheduler (uid 1000) |
 | Webhook auth | Alert-receiver requires `ALERT_WEBHOOK_TOKEN` (mandatory unless explicitly disabled) |
 | tmpfs /tmp | Producer, alert-receiver (no persistent writable disk) |
-| Slim base images | python:3.12-slim |
+| Slim base images | python:3.13-slim |
 | Trivy scanning | CI pipeline scans filesystem + 5 custom images (OS + library vulnerabilities) at HIGH/CRITICAL level |
 | Pre-commit hooks | gitleaks (secret scanning) + ruff (Python linting) via `.pre-commit-config.yaml` |
 | CI supply chain | All GitHub Actions SHA-pinned to prevent tag-based supply chain attacks |
