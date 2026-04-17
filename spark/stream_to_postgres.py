@@ -361,6 +361,7 @@ if __name__ == "__main__":
         SparkSession.builder
         .appName("kafka_to_postgres_raw_prices")
         .config("spark.sql.session.timeZone", "UTC")
+        .config("spark.sql.ansi.enabled", "false")
         .getOrCreate()
     )
 

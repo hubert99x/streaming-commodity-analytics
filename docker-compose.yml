@@ -266,7 +266,7 @@ services:
   # Spark Base (manual/debug)
   # =========================
   spark:
-    image: apache/spark:3.5.8
+    image: apache/spark:4.1.1
     user: "0:0"
     depends_on:
       kafka:
@@ -304,7 +304,7 @@ services:
   # Spark Streaming Job
   # =========================
   spark-stream:
-    image: apache/spark:3.5.8
+    image: apache/spark:4.1.1
     user: "0:0"        # root for chown only; spark-submit drops to spark (185) via setpriv
     init: true
     stop_grace_period: 2m
@@ -358,7 +358,7 @@ services:
             --conf spark.driver.maxResultSize=128m \
             --conf spark.sql.session.timeZone=UTC \
             --conf spark.jars.ivy=/home/spark/.ivy2 \
-            --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.8,org.postgresql:postgresql:42.7.10 \
+            --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1,org.postgresql:postgresql:42.7.10 \
             /opt/spark-app/stream_to_postgres.py
     healthcheck:
       test: ["CMD-SHELL", "ps aux | grep -q '[s]park-submit' && find /home/spark/checkpoints/raw_prices -maxdepth 1 -mmin -10 | grep -q ."]
