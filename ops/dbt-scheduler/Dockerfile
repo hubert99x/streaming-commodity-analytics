@@ -27,13 +27,14 @@ RUN pip install --no-cache-dir \
       "dbt-common==1.37.3" \
       "dbt-postgres==1.10.0"
 
-# deepdiff 8.6.2 is installed separately with --upgrade so pip overrides
-# dbt-common's deepdiff<8.0 constraint (the project's scheduler relies on the
-# 8.x API). Same approach as the upstream Dockerfile.
+# deepdiff is installed separately with --upgrade so pip overrides
+# dbt-common's deepdiff<9.0 constraint. dbt-common only uses the
+# DeepDiff() constructor with ignore_order/verbose_level — the 9.0
+# API is fully compatible (verified with dbt build PASS=69).
 # setuptools/wheel/urllib3/jaraco.context are upgraded to clear known CVEs in
 # the transitive deps pulled by dbt-postgres.
 RUN pip install --no-cache-dir --upgrade \
-      "deepdiff==8.6.2" \
+      "deepdiff==9.0.0" \
       setuptools wheel urllib3 "jaraco.context"
 
 RUN groupadd -r -g 1000 dbtuser \
