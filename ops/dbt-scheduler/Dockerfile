@@ -22,7 +22,7 @@ RUN apt-get update \
 # the same versions as before (both compatible with 1.10.x). Bump these
 # together to avoid resolver picking incompatible transitive deps.
 RUN pip install --no-cache-dir \
-      "dbt-core==1.10.9" \
+      "dbt-core==1.10.20" \
       "dbt-adapters==1.22.10" \
       "dbt-common==1.37.3" \
       "dbt-postgres==1.10.0"
