@@ -1571,11 +1571,11 @@
               },
               {
                 "color": "yellow",
-                "value": 500
+                "value": 800
               },
               {
                 "color": "red",
-                "value": 700
+                "value": 1000
               }
             ]
           },
