@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 50,
+  "id": 7,
   "links": [],
   "panels": [
     {
@@ -48,8 +48,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -69,6 +68,7 @@
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [],
           "fields": "/^status$/",
@@ -82,7 +82,7 @@
         "textMode": "value_and_name",
         "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -113,16 +113,17 @@
           }
         }
       ],
+      "title": "",
       "transparent": true,
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
       },
       "gridPos": {
-        "h": 2,
+        "h": 1,
         "w": 17,
         "x": 4,
         "y": 0
@@ -137,20 +138,21 @@
         "content": "",
         "mode": "markdown"
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
+      "title": "",
       "transparent": true,
       "type": "text"
     },
     {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
       },
       "gridPos": {
         "h": 2,
         "w": 17,
         "x": 4,
-        "y": 2
+        "y": 1
       },
       "id": 44,
       "options": {
@@ -162,7 +164,8 @@
         "content": "<div style=\"\n  text-align: center;\n  margin-bottom: 6px;\n  font-size: 22px;\n  font-weight: 600;\n  color: rgb(195, 205, 220);\n  letter-spacing: 1px;\n\">\n  KAFKA / DLQ\n</div>\n\n<div style=\"\n  height: 1px;\n  background-color: rgba(255,255,255,0.12);\n  width: 85%;\n  margin: 0 auto 20px auto;\n\"></div>",
         "mode": "html"
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
+      "title": "",
       "transparent": true,
       "type": "text"
     },
@@ -181,8 +184,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "yellow",
@@ -202,7 +204,7 @@
         "h": 5,
         "w": 5,
         "x": 3,
-        "y": 4
+        "y": 3
       },
       "id": 31,
       "options": {
@@ -210,6 +212,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -224,7 +227,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -289,8 +292,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -358,7 +360,7 @@
         "h": 5,
         "w": 7,
         "x": 9,
-        "y": 4
+        "y": 3
       },
       "id": 29,
       "options": {
@@ -374,7 +376,7 @@
         "showHeader": true,
         "sortBy": []
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -424,8 +426,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -440,7 +441,7 @@
         "h": 5,
         "w": 5,
         "x": 17,
-        "y": 4
+        "y": 3
       },
       "id": 32,
       "options": {
@@ -448,6 +449,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -462,7 +464,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -498,15 +500,15 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
       },
       "gridPos": {
         "h": 2,
         "w": 17,
         "x": 4,
-        "y": 9
+        "y": 8
       },
       "id": 45,
       "options": {
@@ -518,7 +520,8 @@
         "content": "<div style=\"\n  text-align: center;\n  margin-bottom: 6px;\n  font-size: 22px;\n  font-weight: 600;\n  color: rgb(195, 205, 220);\n  letter-spacing: 1px;\n\">\n  DATA QUALITY\n</div>\n\n<div style=\"\n  height: 1px;\n  background-color: rgba(255,255,255,0.12);\n  width: 85%;\n  margin: 0 auto 20px auto;\n\"></div>",
         "mode": "html"
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
+      "title": "",
       "transparent": true,
       "type": "text"
     },
@@ -561,8 +564,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -578,7 +580,7 @@
         "h": 5,
         "w": 5,
         "x": 3,
-        "y": 11
+        "y": 10
       },
       "id": 39,
       "options": {
@@ -586,6 +588,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -600,7 +603,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -651,16 +654,15 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "yellow",
-                "value": 120
+                "value": 150
               },
               {
                 "color": "red",
-                "value": 150
+                "value": 180
               }
             ]
           },
@@ -672,7 +674,7 @@
         "h": 5,
         "w": 4,
         "x": 8,
-        "y": 11
+        "y": 10
       },
       "id": 38,
       "options": {
@@ -680,6 +682,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -694,7 +697,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -747,8 +750,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": null
+                "color": "red"
               },
               {
                 "color": "yellow",
@@ -768,7 +770,7 @@
         "h": 5,
         "w": 4,
         "x": 13,
-        "y": 11
+        "y": 10
       },
       "id": 40,
       "options": {
@@ -776,6 +778,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -790,7 +793,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -845,8 +848,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -984,7 +986,7 @@
         "h": 5,
         "w": 5,
         "x": 17,
-        "y": 11
+        "y": 10
       },
       "id": 42,
       "options": {
@@ -1000,7 +1002,7 @@
         "showHeader": true,
         "sortBy": []
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -1036,15 +1038,15 @@
       "type": "table"
     },
     {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
       },
       "gridPos": {
         "h": 2,
         "w": 17,
         "x": 4,
-        "y": 16
+        "y": 15
       },
       "id": 46,
       "options": {
@@ -1056,7 +1058,8 @@
         "content": "<div style=\"\n  text-align: center;\n  margin-bottom: 6px;\n  font-size: 22px;\n  font-weight: 600;\n  color: rgb(195, 205, 220);\n  letter-spacing: 1px;\n\">\n  PIPELINE OVERVIEW\n</div>\n\n<div style=\"\n  height: 1px;\n  background-color: rgba(255,255,255,0.12);\n  width: 85%;\n  margin: 0 auto 20px auto;\n\"></div>",
         "mode": "html"
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
+      "title": "",
       "transparent": true,
       "type": "text"
     },
@@ -1075,8 +1078,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "#EAB839",
@@ -1096,7 +1098,7 @@
         "h": 5,
         "w": 5,
         "x": 3,
-        "y": 18
+        "y": 17
       },
       "id": 54,
       "options": {
@@ -1104,6 +1106,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -1118,7 +1121,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -1168,8 +1171,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": null
+                "color": "red"
               },
               {
                 "color": "yellow",
@@ -1228,7 +1230,7 @@
         "h": 5,
         "w": 5,
         "x": 10,
-        "y": 18
+        "y": 17
       },
       "id": 37,
       "options": {
@@ -1236,6 +1238,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "horizontal",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -1250,7 +1253,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -1260,7 +1263,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "select\r\n  case\r\n    when now() - max(event_ts) < interval '10 minutes' then 2\r\n    when now() - max(event_ts) < interval '20 minutes' then 1\r\n    else 0\r\n  end as pipeline_status_code\r\nfrom public.raw_prices;",
+          "rawSql": "select\r\n  case\r\n    when now() - max(event_ts) < interval '15 minutes' then 2\r\n    when now() - max(event_ts) < interval '25 minutes' then 1\r\n    else 0\r\n  end as pipeline_status_code\r\nfrom public.raw_prices;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -1321,8 +1324,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": null
+                "color": "red"
               },
               {
                 "color": "green",
@@ -1352,7 +1354,7 @@
         "h": 5,
         "w": 5,
         "x": 17,
-        "y": 18
+        "y": 17
       },
       "id": 49,
       "options": {
@@ -1370,6 +1372,7 @@
         "showValue": "auto",
         "stacking": "none",
         "tooltip": {
+          "hideZeros": false,
           "maxHeight": 600,
           "mode": "single",
           "sort": "none"
@@ -1377,7 +1380,7 @@
         "xTickLabelRotation": 0,
         "xTickLabelSpacing": 0
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -1413,15 +1416,15 @@
       "type": "barchart"
     },
     {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
       },
       "gridPos": {
         "h": 2,
         "w": 17,
         "x": 4,
-        "y": 23
+        "y": 22
       },
       "id": 47,
       "options": {
@@ -1433,7 +1436,8 @@
         "content": "<div style=\"\n  text-align: center;\n  margin-bottom: 6px;\n  font-size: 22px;\n  font-weight: 600;\n  color: rgb(195, 205, 220);\n  letter-spacing: 1px;\n\">\n  DLQ DEBUGGING\n</div>\n\n<div style=\"\n  height: 1px;\n  background-color: rgba(255,255,255,0.12);\n  width: 85%;\n  margin: 0 auto 20px auto;\n\"></div>",
         "mode": "html"
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
+      "title": "",
       "transparent": true,
       "type": "text"
     },
@@ -1473,8 +1477,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1489,7 +1492,7 @@
         "h": 5,
         "w": 6,
         "x": 4,
-        "y": 25
+        "y": 24
       },
       "id": 33,
       "options": {
@@ -1508,6 +1511,7 @@
         "showValue": "auto",
         "stacking": "none",
         "tooltip": {
+          "hideZeros": false,
           "maxHeight": 600,
           "mode": "single",
           "sort": "none"
@@ -1516,7 +1520,7 @@
         "xTickLabelRotation": 0,
         "xTickLabelSpacing": 0
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -1566,8 +1570,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1583,7 +1586,7 @@
         "h": 5,
         "w": 6,
         "x": 15,
-        "y": 25
+        "y": 24
       },
       "id": 30,
       "options": {
@@ -1591,6 +1594,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -1606,7 +1610,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
+      "pluginVersion": "11.6.14+security-01",
       "targets": [
         {
           "datasource": {
@@ -1642,8 +1646,9 @@
       "type": "stat"
     }
   ],
+  "preload": false,
   "refresh": "10s",
-  "schemaVersion": 39,
+  "schemaVersion": 41,
   "tags": [],
   "templating": {
     "list": []
@@ -1652,11 +1657,9 @@
     "from": "now-6h",
     "to": "now"
   },
-  "timeRangeUpdatedDuringEditOrView": false,
   "timepicker": {},
   "timezone": "utc",
   "title": "Pipeline & Data Quality",
   "uid": "pipeline-monitoring",
-  "version": 1,
-  "weekStart": ""
+  "version": 1
 }
