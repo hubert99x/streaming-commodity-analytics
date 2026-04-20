@@ -634,7 +634,7 @@
           }
         }
       ],
-      "title": "DBT Test Freshness (every 30min)",
+      "title": "dbt Test Freshness (every 30min)",
       "transparent": true,
       "type": "stat"
     },
