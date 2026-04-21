@@ -1398,8 +1398,8 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*)\r\nFROM public.raw_prices\r\nWHERE ingest_ts >= now() - interval '8 minutes';\r\n",
-          "refId": "Events (last 8 min)",
+          "rawSql": "SELECT COUNT(*)\nFROM public.raw_prices\nWHERE event_ts = (\n  SELECT MAX(event_ts)\n  FROM public.raw_prices\n  WHERE ingest_ts >= now() - interval '12 minutes'\n);\n",
+          "refId": "Events (last cycle)",
           "sql": {
             "columns": [
               {
