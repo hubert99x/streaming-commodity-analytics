@@ -45,6 +45,7 @@ tmp/
 *.doc
 MAGISTERKA_KOPIA.txt
 docs/system-walkthrough.md
+docs/SLOWNIK.md
 
 # Others
 CLAUDE.md
