@@ -66,7 +66,7 @@ Compared to traditional batch ETL, it provides faster feedback loops, continuous
 
 | Service | Role | Profile |
 |---------|------|---------|
-| **postgres** | PostgreSQL 16.13 (primary storage) | core |
+| **postgres** | PostgreSQL 16.14 (primary storage) | core |
 | **kafka** | Apache Kafka (KRaft mode, 3 partitions) | core |
 | **producer** | Fetches prices from Twelve Data API every 6 min | core |
 | **spark-stream** | Kafka → PostgreSQL via Structured Streaming (trigger 300s) | core |

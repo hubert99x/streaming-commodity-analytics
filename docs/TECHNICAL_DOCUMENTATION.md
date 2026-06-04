@@ -28,7 +28,7 @@ The system is a single-machine, Docker Compose-based streaming analytics pipelin
 ```
 ┌──────────────┐     ┌─────────────┐     ┌──────────────────┐     ┌──────────────┐
 │  Twelve Data │     │    Kafka    │     │  Spark Structured│     │  PostgreSQL  │
-│   REST API   │────▶│  (KRaft)   │────▶│    Streaming     │────▶│   16.13      │
+│   REST API   │────▶│  (KRaft)   │────▶│    Streaming     │────▶│   16.14      │
 │              │     │ 3 partitions│     │                  │     │              │
 └──────────────┘     └─────────────┘     └──────────────────┘     └──────┬───────┘
        ▲                                                                  │
@@ -48,20 +48,20 @@ The system is a single-machine, Docker Compose-based streaming analytics pipelin
 
 | Service | Image | Profile | Resource Limits |
 |---------|-------|---------|-----------------|
-| postgres | postgres:16.13 | always | 512MB / 1.0 CPU |
-| kafka | confluentinc/cp-kafka:8.2.0 (KRaft) | always | 1GB / 1.0 CPU |
-| spark-stream | apache/spark:4.1.1 | always | 1GB / 1.5 CPU |
-| spark (debug) | apache/spark:4.1.1 | always | 1GB / 1.0 CPU |
+| postgres | postgres:16.14 | always | 512MB / 1.0 CPU |
+| kafka | confluentinc/cp-kafka:8.2.1 (KRaft) | always | 1GB / 1.0 CPU |
+| spark-stream | apache/spark:4.1.2 | always | 1GB / 1.5 CPU |
+| spark (debug) | apache/spark:4.1.2 | always | 1GB / 1.0 CPU |
 | producer | python:3.13-slim (custom) | always | 128MB / 0.25 CPU |
 | dbt-scheduler | python:3.13-slim (custom, dbt-postgres 1.10.0) | always | 256MB / 0.5 CPU |
 | dbt (manual) | python:3.13-slim (custom, dbt-postgres 1.10.0) | always | 256MB / 0.5 CPU |
-| grafana | grafana/grafana:11.6.14-security-01 | always | 256MB / 0.5 CPU |
+| grafana | grafana/grafana:11.6.15 | always | 256MB / 0.5 CPU |
 | alert-receiver | python:3.13-slim (custom) | always | 128MB / 0.25 CPU |
 | pgadmin | dpage/pgadmin4:9.14 | dev | 256MB / 0.5 CPU |
-| kafka-ui | kafbat/kafka-ui:v1.4.2 | dev | 256MB / 0.5 CPU |
+| kafka-ui | kafbat/kafka-ui:v1.5.0 | dev | 256MB / 0.5 CPU |
 | kafka-lag | python:3.13-slim (custom) | ops | 128MB / 0.25 CPU |
-| retention | postgres:16.13 (custom) | ops | 128MB / 0.25 CPU |
-| backup-cron | postgres:16.13 | ops | 256MB / 0.5 CPU |
+| retention | postgres:16.14 (custom) | ops | 128MB / 0.25 CPU |
+| backup-cron | postgres:16.14 | ops | 256MB / 0.5 CPU |
 
 ### Network Topology
 
