@@ -84,7 +84,7 @@ services:
   # Kafka (KRaft mode – no Zookeeper)
   # =========================
   kafka:
-    image: confluentinc/cp-kafka:8.2.0
+    image: confluentinc/cp-kafka:8.2.1
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: "broker,controller"
@@ -266,7 +266,7 @@ services:
   # Spark Base (manual/debug)
   # =========================
   spark:
-    image: apache/spark:4.1.1
+    image: apache/spark:4.1.2
     user: "0:0"
     depends_on:
       kafka:
@@ -304,7 +304,7 @@ services:
   # Spark Streaming Job
   # =========================
   spark-stream:
-    image: apache/spark:4.1.1
+    image: apache/spark:4.1.2
     user: "0:0"        # root for chown only; spark-submit drops to spark (185) via setpriv
     init: true
     stop_grace_period: 2m
