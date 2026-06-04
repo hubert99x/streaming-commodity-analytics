@@ -6,7 +6,7 @@ services:
   # PostgreSQL
   # =========================
   postgres:
-    image: postgres:16.13
+    image: postgres:16.14
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -130,7 +130,7 @@ services:
     # kafbat/kafka-ui is the actively maintained community fork of the
     # now-dormant provectuslabs/kafka-ui. Env vars (KAFKA_CLUSTERS_0_*)
     # are drop-in compatible with the Provectus image.
-    image: kafbat/kafka-ui:v1.4.2
+    image: kafbat/kafka-ui:v1.5.0
     profiles: ["dev"]
     depends_on:
       kafka:
@@ -188,7 +188,7 @@ services:
   # Grafana (localhost only)
   # =========================
   grafana:
-    image: grafana/grafana:11.6.14-security-01
+    image: grafana/grafana:11.6.15
     ports:
       - "127.0.0.1:3000:3000"
     env_file:
@@ -530,7 +530,7 @@ services:
   # =========================
   backup-cron:
     profiles: ["ops"]
-    image: postgres:16.13
+    image: postgres:16.14
     depends_on:
       postgres:
         condition: service_healthy
