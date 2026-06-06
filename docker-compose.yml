@@ -572,7 +572,7 @@ services:
 
             # Use lock wait timeout so backups fail fast instead of hanging on locks
             if pg_dump -h "$$PGHOST" -p "$$PGPORT" -U "$$PGUSER" -d "$$PGDATABASE" \
-                --lock-wait-timeout=30 \
+                --lock-wait-timeout=30s \
                 -F c -f "$$out" 2> "$$err_file"; then
 
               size="$$(stat -c%s "$$out" 2>/dev/null || echo 0)"
