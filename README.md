@@ -24,6 +24,8 @@ Data is ingested every 6 minutes from Twelve Data API and streamed via Kafka. It
 
 End-to-end flow: Twelve Data API → Kafka → Spark Structured Streaming → PostgreSQL → dbt → Grafana.
 
+---
+
 ### Monitoring & Operations
 ![Monitoring & Operations](docs/monitoring_operations.png)
 
