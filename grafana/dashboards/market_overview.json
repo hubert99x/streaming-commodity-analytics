@@ -1969,7 +1969,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\r\n  COALESCE(\r\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms),\r\n    0\r\n  )\r\nFROM monitoring.api_calls\r\nWHERE ts_utc >= now() - interval '60 minutes'\r\n  AND ok\r\n  AND latency_ms IS NOT NULL;",
+          "rawSql": "SELECT\r\n  COALESCE(\r\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms),\r\n    0\r\n  )\r\nFROM monitoring.api_calls\r\nWHERE ts_utc >= now() - interval '24 hours'\r\n  AND ok\r\n  AND latency_ms IS NOT NULL;",
           "refId": "A",
           "sql": {
             "columns": [
