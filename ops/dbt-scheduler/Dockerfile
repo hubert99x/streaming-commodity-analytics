@@ -25,16 +25,17 @@ RUN pip install --no-cache-dir \
       "dbt-core==1.10.20" \
       "dbt-adapters==1.22.10" \
       "dbt-common==1.37.3" \
-      "dbt-postgres==1.10.0"
+      "dbt-postgres==1.10.2"
 
 # deepdiff is installed separately with --upgrade so pip overrides
 # dbt-common's deepdiff<9.0 constraint. dbt-common only uses the
-# DeepDiff() constructor with ignore_order/verbose_level — the 9.0
-# API is fully compatible (verified with dbt build PASS=69).
+# DeepDiff() constructor with ignore_order/verbose_level — the 9.x
+# API is fully compatible with these calls (verified with dbt build
+# PASS=69 on the 9.0 bump; 9.1 keeps the same constructor API).
 # setuptools/wheel/urllib3/jaraco.context are upgraded to clear known CVEs in
 # the transitive deps pulled by dbt-postgres.
 RUN pip install --no-cache-dir --upgrade \
-      "deepdiff==9.0.0" \
+      "deepdiff==9.1.0" \
       setuptools wheel urllib3 "jaraco.context"
 
 RUN groupadd -r -g 1000 dbtuser \

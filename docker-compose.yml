@@ -84,7 +84,7 @@ services:
   # Kafka (KRaft mode – no Zookeeper)
   # =========================
   kafka:
-    image: confluentinc/cp-kafka:8.2.1
+    image: confluentinc/cp-kafka:8.2.2
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: "broker,controller"
@@ -188,7 +188,7 @@ services:
   # Grafana (localhost only)
   # =========================
   grafana:
-    image: grafana/grafana:11.6.15
+    image: grafana/grafana:11.6.16
     ports:
       - "127.0.0.1:3000:3000"
     env_file:
