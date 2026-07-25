@@ -200,6 +200,11 @@ def td_prices(symbols: List[str]) -> Dict[str, float]:
 
     t0 = time.perf_counter()
 
+    # Exactly one monitoring.api_calls row per request: the specific branches
+    # below log and mark the call as recorded, so the catch-all handler only
+    # covers failures that never reached one of them (timeouts, DNS, 4xx).
+    logged = False
+
     try:
         r = requests.get(
             f"{TD_BASE}/price",
@@ -211,10 +216,12 @@ def td_prices(symbols: List[str]) -> Dict[str, float]:
 
         if r.status_code == 429:
             log_api_call(",".join(symbols), 429, latency_ms, False, "RATE_LIMIT_429", None)
+            logged = True
             raise RuntimeError("RATE_LIMIT_429")
 
         if 500 <= r.status_code <= 599:
             log_api_call(",".join(symbols), r.status_code, latency_ms, False, f"SERVER_{r.status_code}", None)
+            logged = True
             raise RuntimeError(f"SERVER_{r.status_code}")
 
         r.raise_for_status()
@@ -223,13 +230,16 @@ def td_prices(symbols: List[str]) -> Dict[str, float]:
 
         if isinstance(data, dict) and data.get("status") == "error":
             log_api_call(",".join(symbols), r.status_code, latency_ms, False, "TD_ERROR", data.get("message"))
+            logged = True
             raise RuntimeError(f"TD_ERROR: {data.get('message')}")
 
         log_api_call(",".join(symbols), r.status_code, latency_ms, True, None, None)
+        logged = True
 
     except Exception as e:
-        latency_ms = int((time.perf_counter() - t0) * 1000)
-        log_api_call(",".join(symbols), None, latency_ms, False, "EXCEPTION", str(e))
+        if not logged:
+            latency_ms = int((time.perf_counter() - t0) * 1000)
+            log_api_call(",".join(symbols), None, latency_ms, False, "EXCEPTION", str(e))
         raise
 
     out: Dict[str, float] = {}
