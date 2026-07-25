@@ -429,7 +429,12 @@ if __name__ == "__main__":
         .when(col("source").isNull(), lit("MISSING_FIELD:source"))
         .when(col("event_ts").isNull(), lit("INVALID_FIELD:event_ts"))
         .when(col("price") <= lit(0), lit("INVALID_FIELD:price<=0"))
-        .when(col("schema_version") != lit(SUPPORTED_SCHEMA_VERSION), lit("UNSUPPORTED_SCHEMA_VERSION"))
+        # eqNullSafe so a missing schema_version is rejected too: a plain
+        # "!=" yields NULL for a missing field, which no .when() would match.
+        .when(
+            ~col("schema_version").eqNullSafe(lit(SUPPORTED_SCHEMA_VERSION)),
+            lit("UNSUPPORTED_SCHEMA_VERSION"),
+        )
     )
 
     # Per-commodity sanity bounds from shared PRICE_BOUNDS (single source of truth)
