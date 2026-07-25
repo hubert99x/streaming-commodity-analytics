@@ -18,14 +18,14 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-# dbt 1.10 is the current LTS line. dbt-adapters / dbt-common stay on
-# the same versions as before (both compatible with 1.10.x). Bump these
-# together to avoid resolver picking incompatible transitive deps.
+# Bump these four together: dbt-core 1.12 requires dbt-adapters >=1.24.5 and
+# dbt-common >=1.37.5, so pinning them separately lets the resolver pick
+# incompatible transitive versions. Mirrored in .github/workflows/dbt-ci.yml.
 RUN pip install --no-cache-dir \
-      "dbt-core==1.10.20" \
-      "dbt-adapters==1.22.10" \
-      "dbt-common==1.37.3" \
-      "dbt-postgres==1.10.2"
+      "dbt-core==1.12.0" \
+      "dbt-adapters==1.24.5" \
+      "dbt-common==1.38.0" \
+      "dbt-postgres==1.11.0"
 
 # deepdiff is installed separately with --upgrade so pip overrides
 # dbt-common's deepdiff<9.0 constraint. dbt-common only uses the
