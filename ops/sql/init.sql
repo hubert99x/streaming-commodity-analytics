@@ -25,9 +25,9 @@ CREATE TABLE IF NOT EXISTS public.raw_prices (
     symbol           TEXT NOT NULL,            -- e.g. 'XAU/USD', 'BTC/USD', 'EUR/USD'
     price            DOUBLE PRECISION NOT NULL,
     currency         TEXT NOT NULL,            -- always 'USD' in current schema
-    event_ts         TIMESTAMP NOT NULL,       -- when the price was observed at the source
+    event_ts         TIMESTAMPTZ NOT NULL,     -- when the price was observed at the source (UTC)
     source           TEXT,                     -- e.g. 'twelvedata_rest'
-    ingest_ts        TIMESTAMP,               -- when Spark wrote this row
+    ingest_ts        TIMESTAMPTZ,              -- when Spark wrote this row (UTC)
     kafka_partition  INTEGER,                  -- for debugging and lag monitoring
     kafka_offset     BIGINT                   -- for debugging and lag monitoring
 );
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS monitoring.dead_letter_events (
     id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ts_utc              TIMESTAMPTZ NOT NULL DEFAULT now(),
     stream_instance_id  TEXT,       -- identifies which Spark instance produced the error
-    batch_id            INTEGER,    -- Spark micro-batch number
+    batch_id            BIGINT,     -- Spark micro-batch number
     topic               TEXT,
     kafka_partition     INTEGER,
     kafka_offset        BIGINT,     -- exact Kafka offset for tracing
@@ -62,17 +62,8 @@ CREATE TABLE IF NOT EXISTS monitoring.dead_letter_events (
     raw_payload         TEXT        -- original JSON string from Kafka
 );
 
--- DLQ idempotent upsert constraint (prevents duplicate DLQ entries on batch replay).
--- Required by Spark's INSERT ... ON CONFLICT (stream_instance_id, batch_id, kafka_partition, kafka_offset).
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'uq_dlq_event'
-    ) THEN
-        ALTER TABLE monitoring.dead_letter_events
-        ADD CONSTRAINT uq_dlq_event
-        UNIQUE (stream_instance_id, batch_id, kafka_partition, kafka_offset);
-    END IF;
-END $$;
+-- The uq_dlq_event constraint required by Spark's ON CONFLICT is created in
+-- ops/sql/create_indexes.sql, which runs right after this file.
 
 -- Kafka consumer lag snapshots, recorded every 60s by the kafka-lag monitor service.
 -- Used by Grafana to detect if Spark is falling behind on processing.
