@@ -16,6 +16,10 @@ echo "[dbt-test] $(date -Is) starting..."
 echo "[dbt-test] target=${DBT_TARGET}"
 echo "[dbt-test] target_path=${DBT_TARGET_PATH}"
 
+# Drop the previous file first: if dbt fails before writing results, the stale
+# one would otherwise be parsed and logged as a fresh run.
+rm -f "$RR"
+
 # || true: always parse results even if some tests fail (we log the outcome below)
 dbt test --target "$DBT_TARGET" --no-use-colors || true
 

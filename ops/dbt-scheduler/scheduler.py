@@ -117,7 +117,15 @@ def _run_dbt_test_and_log():
 
 
 def _run_retention():
-    """Run retention cleanup using shared retention.sql file."""
+    """Run retention deletes using the shared retention.sql file.
+
+    Deletes only — VACUUM needs table ownership and lives in the retention
+    daemon (ops profile), which connects as the owner.
+    """
+    # Same lock as build/test so a 24h cleanup cannot overlap a dbt run
+    if not _lock.acquire(blocking=False):
+        print(f"[dbt-scheduler] {_now_iso()} retention skipped (dbt busy)", flush=True)
+        return
     try:
         print(f"[dbt-scheduler] {_now_iso()} starting retention cleanup...", flush=True)
         result = subprocess.run(
@@ -147,6 +155,8 @@ def _run_retention():
         print(f"[dbt-scheduler] {_now_iso()} retention cleanup TIMEOUT", flush=True)
     except Exception as e:
         print(f"[dbt-scheduler] {_now_iso()} retention cleanup ERROR: {e}", flush=True)
+    finally:
+        _lock.release()
 
 
 def _handle_stop(signum, _frame):

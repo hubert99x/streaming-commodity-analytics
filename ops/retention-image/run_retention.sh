@@ -26,11 +26,13 @@ while true; do
     echo "WARNING: retention SQL failed (rc=$?)."
   fi
 
-  # 2) Weekly VACUUM on Sunday only to avoid blocking Spark writes during peak hours
+  # 2) Weekly VACUUM on Sunday only to avoid blocking Spark writes during peak hours.
+  # This container connects as the table owner, so it is the only place where
+  # VACUUM actually runs — the dbt-scheduler connects as dbt_runner and cannot.
   DOW="$(date +%u)"  # 1..7, 7=Sunday
   if [ "${DOW}" = "7" ]; then
     echo "Weekly VACUUM (ANALYZE) running..."
-    psql "${CONN}" -v ON_ERROR_STOP=1 -c "VACUUM (ANALYZE) public.raw_prices;" || \
+    psql "${CONN}" -v ON_ERROR_STOP=1 -f /ops/sql/vacuum.sql || \
       echo "WARNING: VACUUM failed."
   fi
 
