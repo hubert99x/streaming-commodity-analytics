@@ -27,7 +27,11 @@ select
 
 from {{ ref('stg_raw_prices') }}
 {% if is_incremental() %}
--- Only recompute last 30 minutes (handles late-arriving data)
-where date_trunc('minute', event_ts) >= (select max(minute_bucket) - interval '30 minutes' from {{ this }})
+-- Only recompute last 30 minutes (handles late-arriving data).
+-- coalesce keeps an empty table from producing a NULL bound that matches nothing.
+where date_trunc('minute', event_ts) >= coalesce(
+    (select max(minute_bucket) from {{ this }}) - interval '30 minutes',
+    now() - interval '7 days'
+)
 {% endif %}
 group by 1,2,3

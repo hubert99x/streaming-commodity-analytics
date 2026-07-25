@@ -7,7 +7,7 @@
   )
 }}
 -- Detect significant price changes between consecutive observations.
--- Used by Grafana "Recent Price Events" table and "Market Summary" panel.
+-- Used by the Grafana "Recent Price Events" table (Market Analysis dashboard).
 --
 -- Classifies each price change as MEDIUM_MOVE / LARGE_MOVE / EXTREME_MOVE
 -- using per-commodity thresholds that reflect each asset's typical volatility.
@@ -34,8 +34,14 @@ with base as (
         ) as prev_event_ts
     from {{ ref('stg_raw_prices') }}
     {% if is_incremental() %}
-    -- Lookback 2 hours so LAG() can see the row before the incremental boundary
-    where event_ts >= (select max(event_ts) - interval '2 hours' from {{ this }})
+    -- Lookback 2 hours so LAG() can see the row before the incremental boundary.
+    -- coalesce guards the empty-table case: this model only stores non-NORMAL
+    -- events, so a full refresh during a quiet period leaves it empty, max()
+    -- returns NULL and the predicate would reject every row from then on.
+    where event_ts >= coalesce(
+        (select max(event_ts) from {{ this }}) - interval '2 hours',
+        now() - interval '7 days'
+    )
     {% endif %}
 
 ),

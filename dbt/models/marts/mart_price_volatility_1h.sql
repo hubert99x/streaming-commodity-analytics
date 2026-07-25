@@ -7,7 +7,8 @@
   )
 }}
 -- Hourly volatility metrics: avg price, range, std dev per instrument per hour.
--- Used by Grafana "Price Statistics" table, "Hourly Range" chart, and "Market Summary" panel.
+-- Used by the Grafana "Price Statistics" table and "Hourly Price Change (%)"
+-- chart (Market Analysis dashboard).
 --
 -- range_pct = (high - low) / avg * 100 — a normalized measure of price spread
 -- that allows comparing volatility across instruments with different price levels
@@ -25,8 +26,12 @@ with base as (
         price
     from {{ ref('stg_raw_prices') }}
     {% if is_incremental() %}
-    -- Only recompute the last 2 completed hours (handles late-arriving data)
-    where date_trunc('hour', event_ts) >= (select max(hour_bucket) - interval '2 hours' from {{ this }})
+    -- Only recompute the last 2 completed hours (handles late-arriving data).
+    -- coalesce keeps an empty table from producing a NULL bound that matches nothing.
+    where date_trunc('hour', event_ts) >= coalesce(
+        (select max(hour_bucket) from {{ this }}) - interval '2 hours',
+        now() - interval '7 days'
+    )
     {% endif %}
 
 ),
