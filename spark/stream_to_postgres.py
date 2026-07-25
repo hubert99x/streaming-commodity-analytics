@@ -129,6 +129,16 @@ def _open_jdbc_conn(spark: SparkSession):
     return driver.connect(PG_URL, props)
 
 
+def _close_quietly(*resources) -> None:
+    """Close JDBC resources in order, never masking the original error."""
+    for res in resources:
+        if res is not None:
+            try:
+                res.close()
+            except Exception:
+                pass
+
+
 def _exec_sql_via_jdbc(spark: SparkSession, sql_text: str) -> None:
     """
     Execute SQL on Postgres using JVM JDBC (no extra Python libs required).
@@ -147,10 +157,7 @@ def _exec_sql_via_jdbc(spark: SparkSession, sql_text: str) -> None:
             conn.rollback()
         raise
     finally:
-        if stmt is not None:
-            stmt.close()
-        if conn is not None:
-            conn.close()
+        _close_quietly(stmt, conn)
 
 
 def _exec_merge_returning_count(spark: SparkSession, sql_text: str) -> int:
@@ -169,10 +176,7 @@ def _exec_merge_returning_count(spark: SparkSession, sql_text: str) -> int:
             conn.rollback()
         raise
     finally:
-        if stmt is not None:
-            stmt.close()
-        if conn is not None:
-            conn.close()
+        _close_quietly(stmt, conn)
 
 
 def _ensure_staging_tables(spark: SparkSession):
@@ -215,10 +219,12 @@ def _staging_cycle(spark, jdbc_props, batch_df, *, staging_table, merge_sql, loc
 
     Returns the number of rows actually inserted by the merge (excludes ON CONFLICT skips).
     """
-    lock_conn = _open_jdbc_conn(spark)
-    lock_stmt = lock_conn.createStatement()
+    lock_conn = None
+    lock_stmt = None
     inserted = 0
     try:
+        lock_conn = _open_jdbc_conn(spark)
+        lock_stmt = lock_conn.createStatement()
         lock_stmt.execute(f"SELECT pg_advisory_lock({lock_key})")
 
         _exec_sql_via_jdbc(spark, f"TRUNCATE {staging_table};")
@@ -231,18 +237,20 @@ def _staging_cycle(spark, jdbc_props, batch_df, *, staging_table, merge_sql, loc
 
         inserted = _exec_merge_returning_count(spark, merge_sql)
     finally:
-        for attempt in range(3):
-            try:
-                lock_stmt.execute(f"SELECT pg_advisory_unlock({lock_key})")
-                break
-            except Exception as e:
-                if attempt == 2:
-                    print(
-                        f"[spark-stream] WARNING: pg_advisory_unlock({lock_key}) failed after 3 attempts: {e}",
-                        flush=True,
-                    )
-        lock_stmt.close()
-        lock_conn.close()
+        # The lock is session-scoped, so closing the connection releases it even
+        # if every unlock attempt fails.
+        if lock_stmt is not None:
+            for attempt in range(3):
+                try:
+                    lock_stmt.execute(f"SELECT pg_advisory_unlock({lock_key})")
+                    break
+                except Exception as e:
+                    if attempt == 2:
+                        print(
+                            f"[spark-stream] WARNING: pg_advisory_unlock({lock_key}) failed after 3 attempts: {e}",
+                            flush=True,
+                        )
+        _close_quietly(lock_stmt, lock_conn)
     return inserted
 
 
@@ -261,16 +269,31 @@ def make_foreach_batch(spark: SparkSession):
             _ensure_staging_tables(spark)
             staging_ready = True
 
+        # Cache the batch before touching it. Every action below re-evaluates the
+        # plan otherwise, including the current_timestamp() behind ingest_ts, so
+        # rows from one micro-batch would be stamped with different ingest times
+        # and the measured pipeline latency would drift within a single batch.
+        batch_df.persist()
+        try:
+            _process_batch(batch_df, batch_id)
+        finally:
+            batch_df.unpersist()
+
+    def _process_batch(batch_df, batch_id: int):
         if batch_df.isEmpty():
             print(f"[spark-stream] batch_id={batch_id} rows=0 skip=true", flush=True)
             return
 
         t0 = time.time()
 
+        # Same timeouts as the control-plane connections; without them a stalled
+        # socket during df.write.jdbc() would hang the streaming query silently.
         jdbc_props = {
             "user": POSTGRES_USER,
             "password": POSTGRES_PASSWORD,
             "driver": PG_DRIVER,
+            "connectTimeout": str(JDBC_CONNECT_TIMEOUT),
+            "socketTimeout": str(JDBC_SOCKET_TIMEOUT),
         }
 
         counts = (
@@ -451,6 +474,21 @@ if __name__ == "__main__":
 
     foreach_fn = make_foreach_batch(spark)
 
+    # Registered before the query starts so a SIGTERM during startup still shuts
+    # the session down cleanly instead of killing the JVM mid-initialisation.
+    query = None
+
+    def _graceful_stop(signum, frame):
+        try:
+            if query is not None:
+                query.stop()
+        finally:
+            spark.stop()
+            sys.exit(0)
+
+    signal.signal(signal.SIGTERM, _graceful_stop)
+    signal.signal(signal.SIGINT, _graceful_stop)
+
     # Start the streaming query with 300-second micro-batch trigger.
     # Trigger interval (300s) is intentionally shorter than producer polling (360s)
     # to ensure data is processed before the next batch arrives, minimizing latency.
@@ -465,15 +503,5 @@ if __name__ == "__main__":
         .outputMode("append")
         .start()
     )
-
-    def _graceful_stop(signum, frame):
-        try:
-            query.stop()
-        finally:
-            spark.stop()
-            sys.exit(0)
-
-    signal.signal(signal.SIGTERM, _graceful_stop)
-    signal.signal(signal.SIGINT, _graceful_stop)
 
     query.awaitTermination()
