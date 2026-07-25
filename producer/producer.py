@@ -94,6 +94,17 @@ def _get_pg_conn():
     return _pg_conn
 
 
+def _close_pg_conn():
+    """Drop the cached connection, closing the socket first."""
+    global _pg_conn
+    if _pg_conn is not None:
+        try:
+            _pg_conn.close()
+        except Exception:
+            pass
+        _pg_conn = None
+
+
 def log_api_call(symbols: str, http_status, latency_ms: int, ok: bool, error_type=None, error_msg=None):
     """
     Insert one API call metric row into monitoring.api_calls.
@@ -111,18 +122,18 @@ def log_api_call(symbols: str, http_status, latency_ms: int, ok: bool, error_typ
                 (symbols, http_status, latency_ms, ok, error_type, error_msg),
             )
     except Exception as e:
-        global _pg_conn
-        _pg_conn = None
+        # Close before dropping the reference, otherwise every DB hiccup leaks a socket
+        _close_pg_conn()
         print(f"ERROR logging API metrics: {e}", flush=True)
 
 
 # ==========================================================
 # Helpers
 # ==========================================================
-def utc_iso() -> str:
-    """Return current UTC time as compact ISO-8601 string (e.g. '2026-03-14T12:00:00Z')."""
+def utc_iso(now_utc: datetime) -> str:
+    """Format a UTC datetime as a compact ISO-8601 string (e.g. '2026-03-14T12:00:00Z')."""
     return (
-        datetime.now(timezone.utc)
+        now_utc
         .replace(microsecond=0)
         .isoformat()
         .replace("+00:00", "Z")
@@ -233,8 +244,7 @@ def td_prices(symbols: List[str]) -> Dict[str, float]:
             logged = True
             raise RuntimeError(f"TD_ERROR: {data.get('message')}")
 
-        log_api_call(",".join(symbols), r.status_code, latency_ms, True, None, None)
-        logged = True
+        http_status = r.status_code
 
     except Exception as e:
         if not logged:
@@ -244,26 +254,45 @@ def td_prices(symbols: List[str]) -> Dict[str, float]:
 
     out: Dict[str, float] = {}
 
+    def _price(raw, symbol: str):
+        """Convert an API price to float, skipping the symbol on bad values."""
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            print(f"SKIP {symbol} - unparseable price {raw!r}", flush=True)
+            return None
+
     # Twelve Data returns different JSON shapes depending on the number of symbols:
     # Case A: single symbol response: {"symbol":"BTC/USD","price":"..."}
     if isinstance(data, dict) and "symbol" in data and "price" in data:
-        out[data["symbol"]] = float(data["price"])
-        return out
+        value = _price(data["price"], data["symbol"])
+        if value is not None:
+            out[data["symbol"]] = value
 
     # Case B: single symbol response without symbol: {"price":"..."}
-    if isinstance(data, dict) and "price" in data and len(symbols) == 1:
-        out[symbols[0]] = float(data["price"])
-        return out
+    elif isinstance(data, dict) and "price" in data and len(symbols) == 1:
+        value = _price(data["price"], symbols[0])
+        if value is not None:
+            out[symbols[0]] = value
 
     # Case C: multi symbol response: {"BTC/USD":{"price":"..."}, ...}
-    if isinstance(data, dict):
+    elif isinstance(data, dict):
         for s in symbols:
             v = data.get(s)
             if isinstance(v, dict) and v.get("price") is not None:
-                out[s] = float(v["price"])
+                value = _price(v["price"], s)
+                if value is not None:
+                    out[s] = value
 
     if not out:
         print(f"WARNING: No prices parsed from response: {data}", flush=True)
+
+    # Logged once, after parsing: a 200 that yields no usable price is a failure,
+    # otherwise a broken response format would show as 100% success in Grafana.
+    log_api_call(
+        ",".join(symbols), http_status, latency_ms, bool(out),
+        None if out else "EMPTY_PARSE", None if out else str(data)[:500],
+    )
 
     return out
 
@@ -289,7 +318,7 @@ def _ensure_topic(topic: str, num_partitions: int) -> None:
     existing = admin.list_topics(timeout=10).topics
     if topic not in existing:
         fs = admin.create_topics([NewTopic(topic, num_partitions=num_partitions, replication_factor=1)])
-        fs[topic].result()
+        fs[topic].result(timeout=30)
         print(f"[producer] created topic '{topic}' with {num_partitions} partitions", flush=True)
     else:
         actual = len(existing[topic].partitions)
@@ -350,11 +379,7 @@ def main():
                 break
 
         now_utc = datetime.now(timezone.utc)
-        ts = (
-            now_utc.replace(microsecond=0)
-            .isoformat()
-            .replace("+00:00", "Z")
-        )
+        ts = utc_iso(now_utc)
 
         symbols_list = active_symbols_for_fetch(now_utc)
 
@@ -483,12 +508,20 @@ def main():
             except Exception as e:
                 print(f"ERROR produce for {commodity} ({symbol}): {e}", flush=True)
 
+        undelivered = 0
         try:
-            producer.flush(10)
+            # flush() returns how many messages are still queued after the timeout
+            undelivered = producer.flush(10)
+            if undelivered:
+                print(f"WARNING: {undelivered} message(s) still undelivered after flush", flush=True)
         except Exception as e:
             print(f"ERROR flush: {e}", flush=True)
 
-        print(f"CYCLE DONE: sent={sent} fetched={len(symbols_list)} now_utc={now_utc.isoformat()}", flush=True)
+        print(
+            f"CYCLE DONE: sent={sent} undelivered={undelivered} "
+            f"fetched={len(symbols_list)} now_utc={now_utc.isoformat()}",
+            flush=True,
+        )
 
         # Sleep in 1-second ticks to allow responsive shutdown on SIGTERM/SIGINT
         slept = 0
@@ -498,9 +531,13 @@ def main():
 
     # Flush remaining messages before exit to avoid data loss
     try:
-        producer.flush(10)
+        remaining = producer.flush(10)
+        if remaining:
+            print(f"WARNING: exiting with {remaining} undelivered message(s)", flush=True)
     except Exception:
         pass
+
+    _close_pg_conn()
 
     print("Producer stopped.", flush=True)
 
