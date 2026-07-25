@@ -5,6 +5,8 @@ Listens for Grafana alert notifications on POST /grafana,
 extracts alert metadata, and logs them to monitoring.alert_events.
 """
 
+import contextlib
+import hmac
 import json
 import os
 import sys
@@ -48,14 +50,21 @@ def _connect():
     )
 
 
-def _get_first_alert(payload: dict) -> dict:
-    """Extract the first alert from Grafana's {"alerts":[...]} webhook payload."""
+def _get_alerts(payload: dict) -> list:
+    """
+    Extract every alert from Grafana's {"alerts":[...]} webhook payload.
+
+    Notification policies group alerts by alertname, so one POST can carry
+    several firing alerts — each one gets its own monitoring.alert_events row.
+    Payloads without a usable alerts array still produce a single row so the
+    raw payload is never lost.
+    """
     alerts = payload.get("alerts")
-    if isinstance(alerts, list) and alerts:
-        a0 = alerts[0]
-        if isinstance(a0, dict):
-            return a0
-    return {}
+    if isinstance(alerts, list):
+        found = [a for a in alerts if isinstance(a, dict)]
+        if found:
+            return found
+    return [{}]
 
 
 def _pick(d: dict, *keys, default=None):
@@ -77,7 +86,7 @@ def grafana_webhook():
     # Optional token check
     if WEBHOOK_TOKEN:
         token = request.headers.get("X-Webhook-Token", "")
-        if token != WEBHOOK_TOKEN:
+        if not hmac.compare_digest(token, WEBHOOK_TOKEN):
             return jsonify({"error": "unauthorized"}), 401
 
     # Parse JSON safely
@@ -88,52 +97,49 @@ def grafana_webhook():
     except Exception as e:
         return jsonify({"error": f"invalid_json: {e}"}), 400
 
-    alert0 = _get_first_alert(payload)
-
-    labels = alert0.get("labels") if isinstance(alert0.get("labels"), dict) else {}
-    annotations = alert0.get("annotations") if isinstance(alert0.get("annotations"), dict) else {}
-
-    # Extract alert metadata with fallback field names to handle different
-    # Grafana versions (v9 uses "fingerprint", v10 uses "ruleUid", etc.)
-    severity = _pick(labels, "severity", default=None)
-    alert_uid = _pick(alert0, "fingerprint", "ruleUid", "uid", default=None)
-    alert_title = _pick(annotations, "summary", "title", default=_pick(alert0, "title", default=None))
-    state = _pick(alert0, "status", "state", default=_pick(payload, "state", default=None))
-
     # These fields vary by Grafana version / config, extract best-effort
     org_id = payload.get("orgId")
     dashboard_uid = payload.get("dashboardUID") or payload.get("dashboardUid")
     panel_id = payload.get("panelId")
+    raw_payload = json.dumps(payload)
+
+    rows = []
+    for alert in _get_alerts(payload):
+        labels = alert.get("labels") if isinstance(alert.get("labels"), dict) else {}
+        annotations = alert.get("annotations") if isinstance(alert.get("annotations"), dict) else {}
+
+        # Fallback field names handle different Grafana versions
+        # (v9 uses "fingerprint", v10 uses "ruleUid", etc.)
+        rows.append((
+            "grafana",
+            _pick(labels, "severity", default=None),
+            _pick(alert, "fingerprint", "ruleUid", "uid", default=None),
+            _pick(annotations, "summary", "title", default=_pick(alert, "title", default=None)),
+            _pick(alert, "status", "state", default=_pick(payload, "state", default=None)),
+            dashboard_uid,
+            panel_id if isinstance(panel_id, int) else None,
+            org_id if isinstance(org_id, int) else None,
+            raw_payload,
+        ))
 
     # Insert into Postgres — wrapped in try/except so a DB failure
     # never crashes the webhook receiver (Grafana would stop retrying)
     try:
-        conn = _connect()
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO monitoring.alert_events
-                    (source, severity, alert_uid, alert_title, state, dashboard_uid, panel_id, org_id, raw_payload)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
-                    """,
-                    (
-                        "grafana",
-                        severity,
-                        alert_uid,
-                        alert_title,
-                        state,
-                        dashboard_uid,
-                        panel_id if isinstance(panel_id, int) else None,
-                        org_id if isinstance(org_id, int) else None,
-                        json.dumps(payload),
-                    ),
-                )
-        conn.close()
+        with contextlib.closing(_connect()) as conn:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.executemany(
+                        """
+                        INSERT INTO monitoring.alert_events
+                        (source, severity, alert_uid, alert_title, state, dashboard_uid, panel_id, org_id, raw_payload)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+                        """,
+                        rows,
+                    )
     except Exception as e:
         return jsonify({"error": f"db_insert_failed: {e}"}), 500
 
-    return jsonify({"ok": True}), 200
+    return jsonify({"ok": True, "stored": len(rows)}), 200
 
 
 if __name__ == "__main__":

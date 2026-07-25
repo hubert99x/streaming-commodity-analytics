@@ -6,6 +6,7 @@ processed offset in public.raw_prices (since Spark uses checkpoint-based
 offsets, not consumer group commits). Logs lag to monitoring.kafka_lag.
 """
 
+import contextlib
 import os
 import time
 import psycopg2
@@ -38,18 +39,19 @@ def get_connection():
 
 def write_lag(total_lag, max_lag):
     """Insert a lag measurement into monitoring.kafka_lag."""
-    conn = get_connection()
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO monitoring.kafka_lag
-                (group_id, topic, ts_utc, total_lag, max_partition_lag)
-                VALUES (%s,%s,now(),%s,%s)
-                """,
-                (CONSUMER_GROUP, KAFKA_TOPIC, total_lag, max_lag)
-            )
-    conn.close()
+    # closing() around the connection: `with conn` only ends the transaction,
+    # so a failing query would otherwise leave the socket open on every poll.
+    with contextlib.closing(get_connection()) as conn:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO monitoring.kafka_lag
+                    (group_id, topic, ts_utc, total_lag, max_partition_lag)
+                    VALUES (%s,%s,now(),%s,%s)
+                    """,
+                    (CONSUMER_GROUP, KAFKA_TOPIC, total_lag, max_lag)
+                )
 
 
 def get_processed_offsets():
@@ -58,19 +60,17 @@ def get_processed_offsets():
     Queries the target table instead of Kafka consumer groups because
     Spark uses checkpoint-based offsets, not consumer group commits.
     """
-    conn = get_connection()
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT kafka_partition, MAX(kafka_offset)
-                FROM public.raw_prices
-                GROUP BY kafka_partition
-                """
-            )
-            result = {row[0]: row[1] for row in cur.fetchall()}
-    conn.close()
-    return result
+    with contextlib.closing(get_connection()) as conn:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT kafka_partition, MAX(kafka_offset)
+                    FROM public.raw_prices
+                    GROUP BY kafka_partition
+                    """
+                )
+                return {row[0]: row[1] for row in cur.fetchall()}
 
 
 def get_lag():

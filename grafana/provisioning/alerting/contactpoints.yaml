@@ -9,3 +9,8 @@ contactPoints:
         settings:
           url: http://alert-receiver:5000/grafana
           httpMethod: POST
+          # Matches ALERT_WEBHOOK_TOKEN in the alert-receiver container.
+          # Leave the variable empty and set ALERT_WEBHOOK_AUTH_DISABLED=true
+          # to run without auth locally.
+          httpHeaders:
+            X-Webhook-Token: ${ALERT_WEBHOOK_TOKEN}
