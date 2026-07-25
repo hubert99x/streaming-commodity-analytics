@@ -60,7 +60,7 @@ Compared to traditional batch ETL, it provides faster feedback loops, continuous
 | **Persistent staging + advisory lock** | Batch data lands in a staging table, then merges into target under `pg_advisory_lock` — ensures safe concurrent writes without full table locks |
 | **Multi-layer validation** | Price bounds checked at producer (pre-publish) AND Spark (post-consume) — defense in depth |
 | **FX weekend gating** | XAU/USD, EUR/USD skipped Fri 22:00 – Sun 21:59 UTC; BTC runs 24/7 — prevents stale quotes from polluting analytics |
-| **5 database roles** | Each service gets only the permissions it needs — a compromised component cannot escalate beyond its own schema |
+| **7 database roles** | Each service gets only the permissions it needs — a compromised component cannot escalate beyond its own schema |
 | **Incremental dbt models** | Marts use lookback windows (30m–2h) — constant runtime regardless of table size |
 | **Per-commodity event thresholds** | BTC extreme = 1.5%, XAU = 0.6%, EUR = 0.25% — reflects actual market volatility profiles |
 
@@ -130,7 +130,7 @@ See [Operations Guide](docs/OPERATIONS.md#alert-rules-11-rules) for full alert r
 
 ## Security
 
-The project applies several production-inspired hardening practices (container capability drop, non-root users, read-only rootfs, RBAC with 5 database roles, pre-commit secret scanning, SHA-pinned CI actions), but it is designed as a single-host educational system rather than a fully production-grade distributed deployment.
+The project applies several production-inspired hardening practices (container capability drop, non-root users, read-only rootfs, RBAC with 7 database roles, pre-commit secret scanning, SHA-pinned CI actions), but it is designed as a single-host educational system rather than a fully production-grade distributed deployment.
 
 See [Security](docs/SECURITY.md) for full details.
 
