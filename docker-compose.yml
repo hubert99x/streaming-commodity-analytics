@@ -69,7 +69,7 @@ services:
   # pgAdmin (DEV only)
   # =========================
   pgadmin:
-    image: dpage/pgadmin4:9.14
+    image: dpage/pgadmin4:9.16
     profiles: ["dev"]
     depends_on:
       postgres:
