@@ -1,8 +1,9 @@
 -- =========================================================
 -- GRANTS for streaming_system
--- Roles assumed to exist:
---   spark_writer, dbt_runner, grafana_read, producer_writer, backup_user
--- Run as postgres superuser.
+-- Roles are created by ops/sql/roles.sql, which runs first:
+--   spark_writer, dbt_runner, grafana_read, producer_writer, backup_user,
+--   alert_writer, lag_writer
+-- Run as postgres superuser (automatically via docker-entrypoint-initdb.d).
 -- =========================================================
 
 -- 0) Schemas: ingest (Spark temp), analytics (dbt models), monitoring (ops metrics)
@@ -20,9 +21,11 @@ CREATE SCHEMA IF NOT EXISTS monitoring;
 
 GRANT USAGE, CREATE ON SCHEMA ingest TO spark_writer;
 
--- DEFAULT PRIVILEGES: auto-grant on future tables created by Spark (one per micro-batch)
+-- DEFAULT PRIVILEGES: cover the persistent staging tables Spark creates on
+-- first start (ingest.raw_prices_staging, ingest.dlq_staging), which are
+-- TRUNCATEd and refilled once per micro-batch rather than recreated.
 ALTER DEFAULT PRIVILEGES IN SCHEMA ingest
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO spark_writer;
+GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON TABLES TO spark_writer;
 
 -- target table in public
 GRANT USAGE ON SCHEMA public TO spark_writer;
@@ -62,9 +65,14 @@ GRANT SELECT ON TABLES TO grafana_read;
 -- =========================================================
 -- 3) Grafana read-only
 -- Needs:
+--   - read raw_prices directly (13 panels chart prices and pipeline health
+--     straight from the raw layer instead of going through a mart)
 --   - read marts in analytics
 --   - read all monitoring tables and views (dashboards + alert rules)
 -- =========================================================
+
+GRANT USAGE ON SCHEMA public TO grafana_read;
+GRANT SELECT ON TABLE public.raw_prices TO grafana_read;
 
 GRANT USAGE ON SCHEMA analytics TO grafana_read;
 GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO grafana_read;
@@ -108,3 +116,24 @@ GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO backup_user;
 GRANT USAGE ON SCHEMA monitoring TO backup_user;
 GRANT SELECT ON ALL TABLES IN SCHEMA monitoring TO backup_user;
 GRANT INSERT ON TABLE monitoring.backup_log TO backup_user;
+
+-- =========================================================
+-- 6) Alert writer (alert-receiver webhook)
+-- Needs:
+--   - insert Grafana alert payloads into monitoring.alert_events
+-- =========================================================
+
+GRANT USAGE ON SCHEMA monitoring TO alert_writer;
+GRANT INSERT ON TABLE monitoring.alert_events TO alert_writer;
+
+-- =========================================================
+-- 7) Lag writer (Kafka consumer lag monitor)
+-- Needs:
+--   - read processed Kafka offsets from public.raw_prices
+--   - insert lag snapshots into monitoring.kafka_lag
+-- =========================================================
+
+GRANT USAGE ON SCHEMA public TO lag_writer;
+GRANT SELECT ON TABLE public.raw_prices TO lag_writer;
+GRANT USAGE ON SCHEMA monitoring TO lag_writer;
+GRANT INSERT ON TABLE monitoring.kafka_lag TO lag_writer;

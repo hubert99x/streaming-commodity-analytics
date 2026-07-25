@@ -11,6 +11,15 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      # Consumed by ops/sql/roles.sql on first init (psql \getenv), so .env
+      # stays the single source of truth for every service account password.
+      SPARK_DB_PASSWORD: ${SPARK_DB_PASSWORD?err}
+      DBT_DB_PASSWORD: ${DBT_DB_PASSWORD?err}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD?err}
+      PRODUCER_DB_PASSWORD: ${PRODUCER_DB_PASSWORD?err}
+      BACKUP_DB_PASSWORD: ${BACKUP_DB_PASSWORD?err}
+      ALERT_DB_PASSWORD: ${ALERT_DB_PASSWORD?err}
+      LAG_DB_PASSWORD: ${LAG_DB_PASSWORD?err}
     command:
       - "postgres"
       - "-c"
@@ -35,7 +44,11 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./backups:/backups
       - ./ops/sql:/ops/sql:ro
-      - ./ops/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      # Ordered bootstrap: roles must exist before grants, and tables before indexes.
+      - ./ops/sql/roles.sql:/docker-entrypoint-initdb.d/01-roles.sql:ro
+      - ./ops/sql/init.sql:/docker-entrypoint-initdb.d/02-init.sql:ro
+      - ./ops/sql/grants.sql:/docker-entrypoint-initdb.d/03-grants.sql:ro
+      - ./ops/sql/create_indexes.sql:/docker-entrypoint-initdb.d/04-indexes.sql:ro
     networks:
       - database
     healthcheck:
@@ -169,6 +182,9 @@ services:
       KAFKA_BOOTSTRAP: kafka:29092
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
+      # Least-privilege account: SELECT on raw_prices, INSERT on monitoring.kafka_lag
+      POSTGRES_USER: ${LAG_DB_USER?err}
+      POSTGRES_PASSWORD: ${LAG_DB_PASSWORD?err}
     networks:
       - messaging
       - database
@@ -237,8 +253,9 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Least-privilege account: INSERT on monitoring.alert_events only
+      POSTGRES_USER: ${ALERT_DB_USER?err}
+      POSTGRES_PASSWORD: ${ALERT_DB_PASSWORD?err}
     networks:
       - database
       - frontend
@@ -265,7 +282,11 @@ services:
   # =========================
   # Spark Base (manual/debug)
   # =========================
+  # Helper container for manual spark-submit / spark-shell runs. It idles on
+  # `sleep infinity`, so it is kept out of the default profile — the streaming
+  # job itself runs in spark-stream below.
   spark:
+    profiles: ["dev"]
     image: apache/spark:4.1.2
     user: "0:0"
     depends_on:
