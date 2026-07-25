@@ -145,6 +145,26 @@ def clamp(n: int, lo: int, hi: int) -> int:
     return max(lo, min(hi, n))
 
 
+def next_backoff(error_kind: str, multiplier: int):
+    """
+    Decide how long to wait after a failed fetch.
+
+    Returns (backoff_sec, next_multiplier). The multiplier doubles on
+    consecutive retryable failures and is capped at 32; the caller resets it
+    to 1 after a successful fetch.
+    """
+    if error_kind == "RATE_LIMIT_429":
+        # Rate limit: skip three polling intervals instead of escalating
+        return clamp(max(BACKOFF_MIN_SEC, INTERVAL_SEC * 3), BACKOFF_MIN_SEC, BACKOFF_MAX_SEC), multiplier
+
+    if error_kind == "TD_ERROR":
+        # API answered with a payload-level error; retry on the normal cadence
+        return clamp(INTERVAL_SEC, BACKOFF_MIN_SEC, BACKOFF_MAX_SEC), multiplier
+
+    multiplier = clamp(multiplier * 2, 1, 32)
+    return clamp(INTERVAL_SEC * multiplier, BACKOFF_MIN_SEC, BACKOFF_MAX_SEC), multiplier
+
+
 def delivery_report(err, msg):
     """Kafka produce callback — logs delivery failures."""
     if err is not None:
@@ -401,35 +421,17 @@ def main():
         except RuntimeError as e:
             s = str(e)
             if s == "RATE_LIMIT_429":
-                backoff_sec = clamp(
-                    max(BACKOFF_MIN_SEC, INTERVAL_SEC * 3),
-                    BACKOFF_MIN_SEC,
-                    BACKOFF_MAX_SEC,
-                )
-                print(f"RATE LIMIT (429). Backing off for {backoff_sec}s.", flush=True)
-                continue
-
-            if s.startswith("SERVER_"):
-                backoff_multiplier = clamp(backoff_multiplier * 2, 1, 32)
-                backoff_sec = clamp(
-                    INTERVAL_SEC * backoff_multiplier,
-                    BACKOFF_MIN_SEC,
-                    BACKOFF_MAX_SEC,
-                )
-                print(f"API {s}. Backing off for {backoff_sec}s.", flush=True)
-                continue
-
-            backoff_sec = clamp(INTERVAL_SEC, BACKOFF_MIN_SEC, BACKOFF_MAX_SEC)
-            print(f"ERROR batch request: {e}. Backing off for {backoff_sec}s.", flush=True)
+                kind = "RATE_LIMIT_429"
+            elif s.startswith("SERVER_"):
+                kind = "SERVER"
+            else:
+                kind = "TD_ERROR"
+            backoff_sec, backoff_multiplier = next_backoff(kind, backoff_multiplier)
+            print(f"API {s}. Backing off for {backoff_sec}s.", flush=True)
             continue
 
         except Exception as e:
-            backoff_multiplier = clamp(backoff_multiplier * 2, 1, 32)
-            backoff_sec = clamp(
-                INTERVAL_SEC * backoff_multiplier,
-                BACKOFF_MIN_SEC,
-                BACKOFF_MAX_SEC,
-            )
+            backoff_sec, backoff_multiplier = next_backoff("EXCEPTION", backoff_multiplier)
             print(f"ERROR batch request: {e}. Backing off for {backoff_sec}s.", flush=True)
             continue
 

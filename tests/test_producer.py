@@ -1,4 +1,6 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+import pytest
 
 from producer.producer import (
     active_symbols_for_fetch,
@@ -66,3 +68,37 @@ def test_active_symbols_for_fetch_when_market_is_open():
     assert "BTC/USD" in symbols
     assert "EUR/USD" in symbols
     assert "XAU/USD" in symbols
+
+
+# ---- Exact edges of the closing window (Fri 22:00:00 - Sun 21:59:59 UTC) ----
+
+@pytest.mark.parametrize(
+    "dt, closed",
+    [
+        # Friday 2026-03-06
+        (datetime(2026, 3, 6, 21, 59, 59, tzinfo=timezone.utc), False),
+        (datetime(2026, 3, 6, 22, 0, 0, tzinfo=timezone.utc), True),
+        # Sunday 2026-03-08
+        (datetime(2026, 3, 8, 21, 59, 59, tzinfo=timezone.utc), True),
+        (datetime(2026, 3, 8, 22, 0, 0, tzinfo=timezone.utc), False),
+    ],
+)
+def test_fx_gate_boundary_instants(dt, closed):
+    assert is_fx_weekend_closed(dt) is closed
+
+
+def test_fx_gate_treats_naive_datetime_as_utc():
+    naive = datetime(2026, 3, 7, 12, 0, 0)
+    assert is_fx_weekend_closed(naive) is True
+
+
+def test_fx_gate_converts_non_utc_timezone_before_comparing():
+    """21:00 in UTC+2 is 19:00 UTC on Friday, so the market is still open."""
+    aware = datetime(2026, 3, 6, 21, 0, 0, tzinfo=timezone(timedelta(hours=2)))
+    assert is_fx_weekend_closed(aware) is False
+
+
+def test_fx_gate_closes_when_non_utc_time_crosses_the_boundary():
+    """01:00 Saturday in UTC+2 is 23:00 Friday UTC, so the market is closed."""
+    aware = datetime(2026, 3, 7, 1, 0, 0, tzinfo=timezone(timedelta(hours=2)))
+    assert is_fx_weekend_closed(aware) is True
