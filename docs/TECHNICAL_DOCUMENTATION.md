@@ -269,7 +269,7 @@ commodities (database)
 ├── analytics (dbt)
 │   ├── stg_raw_prices          ← View (type casting, timezone)
 │   ├── mart_latest_prices      ← View (latest price per commodity)
-│   ├── mart_minute_last_price  ← Incremental (1-min OHLC buckets)
+│   ├── mart_minute_last_price  ← Incremental (1-min last/min/max buckets)
 │   ├── mart_price_events       ← Incremental (significant moves)
 │   └── mart_price_volatility_1h ← Incremental (hourly volatility)
 └── monitoring
@@ -367,7 +367,7 @@ Pass-through with explicit type casts. Timestamps stay `timestamptz`, exactly as
 One row per commodity. Uses PostgreSQL `DISTINCT ON` with a 24-hour optimization window — scans last 24 hours first, falls back to full scan only for commodities missing from that window. Materialized as a view so each query reads the latest data directly from the staging layer.
 
 #### `mart_minute_last_price` (Incremental, 30-min lookback)
-1-minute OHLC-style buckets. Picks the **last** price per minute via `array_agg(price ORDER BY event_ts DESC)[1]`. Includes event count (`n`), min/max price. Post-hook creates a `(minute_bucket DESC)` index.
+1-minute buckets holding the last, min and max price (no opening price, so this is not a full OHLC candle). Picks the **last** price per minute via `array_agg(price ORDER BY event_ts DESC, event_id DESC)[1]`, where `event_id` breaks ties on identical timestamps. Includes event count (`n`). Post-hook creates a `(minute_bucket DESC)` index.
 
 #### `mart_price_events` (Incremental, 2-hour lookback)
 Detects significant price movements using `LAG()` window function with **commodity-specific thresholds**:

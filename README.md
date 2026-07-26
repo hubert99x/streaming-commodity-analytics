@@ -93,7 +93,7 @@ Compared to traditional batch ETL, it provides faster feedback loops, continuous
 |-------|------|-------------|
 | `stg_raw_prices` | view | Type casting, timezone handling |
 | `mart_latest_prices` | view | Latest price per instrument |
-| `mart_minute_last_price` | incremental | Minute-level OHLC statistics |
+| `mart_minute_last_price` | incremental | Last, min and max price per minute bucket |
 | `mart_price_events` | incremental | Significant price changes with per-commodity thresholds |
 | `mart_price_volatility_1h` | incremental | Hourly volatility metrics |
 
