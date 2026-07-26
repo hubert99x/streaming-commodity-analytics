@@ -140,7 +140,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\r\n  'As of ' ||\r\n  to_char(event_ts, 'HH24:MI') ||\r\n  ' UTC ' ||\r\n  to_char(event_ts, 'DD/MM/YYYY') AS last_update\r\nFROM public.raw_prices\r\nWHERE commodity = 'bitcoin'\r\nORDER BY event_ts DESC, event_id DESC\r\nLIMIT 1;",
+          "rawSql": "SELECT\r\n  'As of ' ||\r\n  to_char(event_ts AT TIME ZONE 'UTC', 'HH24:MI') ||\r\n  ' UTC ' ||\r\n  to_char(event_ts AT TIME ZONE 'UTC', 'DD/MM/YYYY') AS last_update\r\nFROM public.raw_prices\r\nWHERE commodity = 'bitcoin'\r\nORDER BY event_ts DESC, event_id DESC\r\nLIMIT 1;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -1517,7 +1517,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT total_lag FROM monitoring.kafka_lag\r\nORDER BY ts_utc DESC LIMIT 1;",
+          "rawSql": "SELECT total_lag FROM monitoring.kafka_lag_latest\r\nORDER BY ts_utc DESC LIMIT 1;",
           "refId": "Time Since Last Event",
           "sql": {
             "columns": [
