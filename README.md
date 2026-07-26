@@ -78,7 +78,7 @@ Compared to traditional batch ETL, it provides faster feedback loops, continuous
 | **kafka-lag** | Monitors Spark consumer lag | ops |
 | **backup-cron** | pg_dump every 2h, keeps last 360 backups | ops |
 | **retention** | Retention daemon (90-day cleanup every 24h) | ops |
-| **spark** | Interactive Spark shell (debugging, runs `sleep infinity`) | always |
+| **spark** | Interactive Spark shell (debugging, runs `sleep infinity`) | dev |
 | **dbt** | One-off dbt execution container | always |
 | **pgadmin** | Database admin UI (port 5050) | dev |
 | **kafka-ui** | Kafka topic browser (port 8080) | dev |
@@ -126,7 +126,7 @@ See [Operations Guide](docs/OPERATIONS.md#alert-rules-11-rules) for full alert r
 |----------|---------|-------------|
 | `python-quality.yml` | Push/PR | Ruff lint + pytest (Python 3.14) |
 | `dbt-ci.yml` | Push/PR | dbt build against ephemeral Postgres (Python 3.14) |
-| `security-trivy.yml` | Push/PR + weekly | Trivy filesystem & image scanning |
+| `security-trivy.yml` | Push/PR | Trivy filesystem & image scanning |
 
 ## Security
 

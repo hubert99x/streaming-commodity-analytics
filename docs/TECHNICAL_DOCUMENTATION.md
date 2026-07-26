@@ -49,17 +49,17 @@ The system is a single-machine, Docker Compose-based streaming analytics pipelin
 | Service | Image | Profile | Resource Limits |
 |---------|-------|---------|-----------------|
 | postgres | postgres:16.14 | always | 512MB / 1.0 CPU |
-| kafka | confluentinc/cp-kafka:8.2.2 (KRaft) | always | 1GB / 1.0 CPU |
-| spark-stream | apache/spark:4.1.2 | always | 1GB / 1.5 CPU |
-| spark (debug) | apache/spark:4.1.2 | always | 1GB / 1.0 CPU |
-| producer | python:3.13-slim (custom) | always | 128MB / 0.25 CPU |
-| dbt-scheduler | python:3.13-slim (custom, dbt-postgres 1.10.2) | always | 256MB / 0.5 CPU |
-| dbt (manual) | python:3.13-slim (custom, dbt-postgres 1.10.2) | always | 256MB / 0.5 CPU |
-| grafana | grafana/grafana:11.6.16 | always | 256MB / 0.5 CPU |
-| alert-receiver | python:3.13-slim (custom) | always | 128MB / 0.25 CPU |
-| pgadmin | dpage/pgadmin4:9.14 | dev | 256MB / 0.5 CPU |
+| kafka | confluentinc/cp-kafka:8.3.0 (KRaft) | always | 1GB / 1.0 CPU |
+| spark-stream | apache/spark:4.1.3 | always | 1GB / 1.5 CPU |
+| spark (debug) | apache/spark:4.1.3 | dev | 1GB / 1.0 CPU |
+| producer | python:3.14-slim (custom) | always | 128MB / 0.25 CPU |
+| dbt-scheduler | python:3.14-slim (custom, dbt-postgres 1.11.0) | always | 256MB / 0.5 CPU |
+| dbt (manual) | python:3.14-slim (custom, dbt-postgres 1.11.0) | always | 256MB / 0.5 CPU |
+| grafana | grafana/grafana:13.1.1 | always | 256MB / 0.5 CPU |
+| alert-receiver | python:3.14-slim (custom) | always | 128MB / 0.25 CPU |
+| pgadmin | dpage/pgadmin4:9.16 | dev | 256MB / 0.5 CPU |
 | kafka-ui | kafbat/kafka-ui:v1.5.0 | dev | 256MB / 0.5 CPU |
-| kafka-lag | python:3.13-slim (custom) | ops | 128MB / 0.25 CPU |
+| kafka-lag | python:3.14-slim (custom) | ops | 128MB / 0.25 CPU |
 | retention | postgres:16.14 (custom) | ops | 128MB / 0.25 CPU |
 | backup-cron | postgres:16.14 | ops | 256MB / 0.5 CPU |
 
@@ -251,7 +251,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 - **Backups are unencrypted.** Stored as plain `pg_dump` files on the host filesystem. No encryption at rest.
 - **No restore testing.** No automated verification that backups can be successfully restored.
 
-**Note:** Retention runs in two places: the dbt-scheduler (built-in, every 24h) and the standalone `retention` daemon (ops profile, every 24h). Both execute the same `retention.sql` and are idempotent. The standalone daemon additionally runs `VACUUM (ANALYZE)` on `raw_prices` on Sundays. All tables — `raw_prices`, `dead_letter_events`, `alert_events`, `api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log` — are pruned at 90-day TTL. The `dbt_runner` role has been granted DELETE on the relevant tables.
+**Note:** Retention runs in two places: the dbt-scheduler (built-in, every 24h, so cleanup works without the ops profile) and the standalone `retention` daemon (ops profile, every 24h). Both execute the same `retention.sql`, which contains only `DELETE` statements and is idempotent. `VACUUM (ANALYZE)` lives in a separate `vacuum.sql` run weekly by the standalone daemon alone, because it requires table ownership that `dbt_runner` does not have. All tables — `raw_prices`, `dead_letter_events`, `alert_events`, `api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log` — are pruned at 90-day TTL. The `dbt_runner` role holds SELECT and DELETE on those tables.
 
 ---
 
@@ -320,7 +320,7 @@ kafka_offset    BIGINT                -- Audit trail
 | `idx_raw_prices_partition_offset` | (kafka_partition, kafka_offset DESC) | Kafka lag monitor |
 | `uq_dlq_event` (unique) | (stream_instance_id, batch_id, kafka_partition, kafka_offset) | DLQ batch replay dedup |
 
-### Role-Based Access Control (5 roles)
+### Role-Based Access Control (7 roles)
 
 | Role | Schemas | Permissions |
 |------|---------|-------------|
@@ -444,7 +444,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 | Non-root users | Producer (appuser), alert-receiver (appuser), kafka-lag (appuser), Spark (uid 185 via setpriv), dbt-scheduler (uid 1000) |
 | Webhook auth | Alert-receiver requires `ALERT_WEBHOOK_TOKEN` (mandatory unless explicitly disabled) |
 | tmpfs /tmp | Producer, alert-receiver (no persistent writable disk) |
-| Slim base images | python:3.13-slim |
+| Slim base images | python:3.14-slim |
 | Trivy scanning | CI pipeline scans filesystem + 5 custom images (OS + library vulnerabilities) at HIGH/CRITICAL level |
 | Pre-commit hooks | gitleaks (secret scanning) + ruff (Python linting) via `.pre-commit-config.yaml` |
 | CI supply chain | All GitHub Actions SHA-pinned to prevent tag-based supply chain attacks |
