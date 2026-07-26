@@ -48,14 +48,22 @@ jobs:
           sudo apt-get install -y postgresql-client
 
       - name: Prepare database objects
-        # Use the same bootstrap scripts as production so CI validates the dbt
-        # models against the real schema (roles.sql is skipped — CI connects as
-        # postgres and needs no service accounts).
+        # Run the full production bootstrap, in the same order as
+        # docker-entrypoint-initdb.d, so CI validates the real schema *and* the
+        # real grants. roles.sql reads the passwords below via psql \getenv.
         env:
           PGPASSWORD: postgres
+          SPARK_DB_PASSWORD: ci_spark_pw
+          DBT_DB_PASSWORD: ci_dbt_pw
+          GRAFANA_DB_PASSWORD: ci_grafana_pw
+          PRODUCER_DB_PASSWORD: ci_producer_pw
+          BACKUP_DB_PASSWORD: ci_backup_pw
+          ALERT_DB_PASSWORD: ci_alert_pw
+          LAG_DB_PASSWORD: ci_lag_pw
         run: |
-          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d commodities -f ops/sql/init.sql
-          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d commodities -f ops/sql/create_indexes.sql
+          for f in roles init grants create_indexes; do
+            psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d commodities -f "ops/sql/${f}.sql"
+          done
 
       - name: Seed raw_prices data (edge cases for incremental + aggregation testing)
         env:
@@ -107,16 +115,54 @@ jobs:
           "
 
       - name: Run dbt deps
+        env:
+          DBT_DB_PASSWORD: ci_dbt_pw
         run: |
           cd dbt
           dbt deps --profiles-dir ../.ci/dbt
 
       - name: Run dbt build (full refresh)
+        env:
+          DBT_DB_PASSWORD: ci_dbt_pw
         run: |
           cd dbt
           dbt build --full-refresh --profiles-dir ../.ci/dbt
 
       - name: Run dbt build (incremental — verifies incremental logic)
+        env:
+          DBT_DB_PASSWORD: ci_dbt_pw
         run: |
           cd dbt
           dbt build --profiles-dir ../.ci/dbt
+
+      - name: Verify service roles can do their work
+        # Each of these failed silently once because grants.sql was never
+        # executed in CI. They run after dbt so the backup also has to cover
+        # models created by dbt_runner, which exercises ALTER DEFAULT PRIVILEGES.
+        run: |
+          echo "::group::retention as dbt_runner"
+          PGPASSWORD=ci_dbt_pw psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U dbt_runner \
+            -d commodities -f ops/sql/retention.sql
+          echo "::endgroup::"
+
+          echo "::group::dbt test logging as dbt_runner"
+          PGPASSWORD=ci_dbt_pw psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U dbt_runner -d commodities -c \
+            "INSERT INTO monitoring.dbt_test_runs
+               (environment, status, total, pass, warn, error, fail, skipped)
+             VALUES ('ci', 'PASS', 64, 64, 0, 0, 0, 0);"
+          echo "::endgroup::"
+
+          echo "::group::pg_dump as backup_user"
+          PGPASSWORD=ci_backup_pw pg_dump -h 127.0.0.1 -U backup_user \
+            -d commodities -F c -f /tmp/ci_backup.dump
+          tables=$(pg_restore -l /tmp/ci_backup.dump | grep -c 'TABLE DATA')
+          echo "backup contains ${tables} tables with data"
+          test "${tables}" -ge 7
+          echo "::endgroup::"
+
+          echo "::group::grafana_read can read what the dashboards query"
+          PGPASSWORD=ci_grafana_pw psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U grafana_read -d commodities -c \
+            "SELECT count(*) FROM public.raw_prices;
+             SELECT * FROM monitoring.pipeline_metrics;
+             SELECT count(*) FROM analytics.mart_latest_prices;"
+          echo "::endgroup::"

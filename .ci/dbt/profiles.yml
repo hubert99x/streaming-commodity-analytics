@@ -5,8 +5,10 @@ commodity_dbt:
       type: postgres
       host: 127.0.0.1
       port: 5432
-      user: postgres
-      pass: postgres
+      # Connect as the same least-privilege role the scheduler uses in production,
+      # so CI fails if ops/sql/grants.sql stops covering what dbt actually needs.
+      user: "{{ env_var('DBT_DB_USER', 'dbt_runner') }}"
+      pass: "{{ env_var('DBT_DB_PASSWORD') }}"
       dbname: commodities
       schema: analytics
       threads: 2
