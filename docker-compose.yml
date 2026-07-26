@@ -343,8 +343,6 @@ services:
       - .env
 
     environment:
-      PG_TARGET_TABLE: "public.raw_prices"
-      PG_STAGING_TABLE: "ingest.raw_prices_staging"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB}
@@ -357,7 +355,6 @@ services:
       JDBC_CONNECT_TIMEOUT: ${JDBC_CONNECT_TIMEOUT:-10}
       JDBC_SOCKET_TIMEOUT: ${JDBC_SOCKET_TIMEOUT:-30}
 
-      SPARK_CHECKPOINT_DIR: /home/spark/checkpoints/raw_prices
 
     volumes:
       - ./spark:/opt/spark-app:ro
@@ -492,7 +489,6 @@ services:
       DBT_TARGET: "dev"
       DBT_TARGET_PATH: /tmp/dbt_target
       DBT_LOG_PATH: /tmp/dbt_logs
-      DQ_ENVIRONMENT: "dev"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB}
@@ -571,6 +567,7 @@ services:
       PGDATABASE: ${POSTGRES_DB?err}
     volumes:
       - ./backups:/backups
+      - ./ops/backup/run_backup.sh:/ops/run_backup.sh:ro
     networks:
       - database
     deploy:
@@ -587,59 +584,9 @@ services:
       - |
           set -u
           echo "Backup service started (every 2 hours)."
-
           while true; do
-            # Include seconds to avoid filename collisions on restarts
-            ts="$$(date +%Y%m%d_%H%M%S)"
-            out="/backups/backup_$${ts}.dump"
-            base="$$(basename "$$out")"
-            err_file="/tmp/pg_dump_err_$$ts.log"
-
-            echo "Running backup at $$(date -Is) -> $$out"
-
-            # Use lock wait timeout so backups fail fast instead of hanging on locks
-            if pg_dump -h "$$PGHOST" -p "$$PGPORT" -U "$$PGUSER" -d "$$PGDATABASE" \
-                --lock-wait-timeout=30s \
-                -F c -f "$$out" 2> "$$err_file"; then
-
-              size="$$(stat -c%s "$$out" 2>/dev/null || echo 0)"
-              echo "Backup OK: $$out ($$size bytes)"
-
-              # Log OK to Postgres (best-effort, keep container alive even if logging fails)
-              psql -X -h "$$PGHOST" -p "$$PGPORT" -U "$$PGUSER" -d "$$PGDATABASE" -v ON_ERROR_STOP=1 \
-                -c "INSERT INTO monitoring.backup_log (file_name, file_size_bytes, status, error_msg)
-                    VALUES ('$$base', $$size, 'OK', NULL);" \
-                >/dev/null 2>&1 || echo "WARNING: failed to insert OK backup log"
-
-              rm -f "$$err_file" >/dev/null 2>&1 || true
-
-              # Keep last 360 backups (2h cadence * 30 days)
-              ls -1t /backups/backup_*.dump | tail -n +361 | xargs -r rm -f
-
-              sleep 7200
-            else
-              # Capture more context (not only the last line)
-              err_msg="$$(tail -n 20 "$$err_file" 2>/dev/null | tr '\n' ' ' | tr -d '\r' | head -c 1500)"
-              # Escape single quotes for SQL literal
-              err_sql="$$(printf "%s" "$$err_msg" | sed "s/'/''/g")"
-
-              echo "Backup FAILED at $$(date -Is): $$err_msg"
-
-              # Remove partial file if any
-              rm -f "$$out" >/dev/null 2>&1 || true
-
-              # Log FAILED to Postgres (best-effort)
-              psql -X -h "$$PGHOST" -p "$$PGPORT" -U "$$PGUSER" -d "$$PGDATABASE" -v ON_ERROR_STOP=1 \
-                -c "INSERT INTO monitoring.backup_log (file_name, file_size_bytes, status, error_msg)
-                    VALUES ('$$base', NULL, 'FAILED', '$$err_sql');" \
-                >/dev/null 2>&1 || echo "WARNING: failed to insert FAILED backup log"
-
-              rm -f "$$err_file" >/dev/null 2>&1 || true
-
-              sleep 60
-            fi
+            sh /ops/run_backup.sh && sleep 7200 || { echo "Retrying in 60s..."; sleep 60; }
           done
-
 networks:
   # Database tier — only services that need direct Postgres access
   database:
