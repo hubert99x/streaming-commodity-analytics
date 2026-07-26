@@ -19,13 +19,10 @@ CREATE SCHEMA IF NOT EXISTS monitoring;
 --   - insert into monitoring.dead_letter_events (DLQ)
 -- =========================================================
 
+-- CREATE lets Spark build its two persistent staging tables on first start
+-- (ingest.raw_prices_staging, ingest.dlq_staging). It owns them afterwards, so
+-- no further grants are needed for the per-batch TRUNCATE/INSERT/MERGE cycle.
 GRANT USAGE, CREATE ON SCHEMA ingest TO spark_writer;
-
--- DEFAULT PRIVILEGES: cover the persistent staging tables Spark creates on
--- first start (ingest.raw_prices_staging, ingest.dlq_staging), which are
--- TRUNCATEd and refilled once per micro-batch rather than recreated.
-ALTER DEFAULT PRIVILEGES IN SCHEMA ingest
-GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON TABLES TO spark_writer;
 
 -- target table in public
 GRANT USAGE ON SCHEMA public TO spark_writer;
@@ -48,14 +45,22 @@ GRANT SELECT, DELETE ON TABLE public.raw_prices TO dbt_runner;
 
 GRANT USAGE, CREATE ON SCHEMA analytics TO dbt_runner;
 
--- Retention: dbt_runner needs DELETE on monitoring tables for automated cleanup
+-- Retention: dbt_runner deletes rows older than 90 days from the monitoring tables.
+-- SELECT is required alongside DELETE because every statement in retention.sql
+-- filters on a timestamp column, and PostgreSQL needs read access to any column
+-- named in a WHERE clause.
 GRANT USAGE ON SCHEMA monitoring TO dbt_runner;
-GRANT DELETE ON TABLE monitoring.dead_letter_events TO dbt_runner;
-GRANT DELETE ON TABLE monitoring.alert_events TO dbt_runner;
-GRANT DELETE ON TABLE monitoring.api_calls TO dbt_runner;
-GRANT DELETE ON TABLE monitoring.kafka_lag TO dbt_runner;
-GRANT DELETE ON TABLE monitoring.dbt_test_runs TO dbt_runner;
-GRANT DELETE ON TABLE monitoring.backup_log TO dbt_runner;
+GRANT SELECT, DELETE ON TABLE monitoring.dead_letter_events TO dbt_runner;
+GRANT SELECT, DELETE ON TABLE monitoring.alert_events TO dbt_runner;
+GRANT SELECT, DELETE ON TABLE monitoring.api_calls TO dbt_runner;
+GRANT SELECT, DELETE ON TABLE monitoring.kafka_lag TO dbt_runner;
+GRANT SELECT, DELETE ON TABLE monitoring.dbt_test_runs TO dbt_runner;
+GRANT SELECT, DELETE ON TABLE monitoring.backup_log TO dbt_runner;
+
+-- run_dbt_test.sh records each dbt test run here, connecting as dbt_runner.
+-- This table feeds the "dbt Test Runs" panel and the dbt test failure alert.
+GRANT INSERT ON TABLE monitoring.dbt_test_runs TO dbt_runner;
+GRANT USAGE, SELECT ON SEQUENCE monitoring.dbt_test_runs_id_seq TO dbt_runner;
 
 -- Auto-grant SELECT to grafana_read on future tables/views created by dbt_runner
 -- (so new dbt models are immediately visible in Grafana without manual grants)
@@ -109,13 +114,27 @@ GRANT INSERT ON TABLE monitoring.api_calls TO producer_writer;
 --   - insert into monitoring.backup_log
 -- =========================================================
 
+-- pg_dump covers every schema, including ingest, and reads last_value from each
+-- sequence, so sequence privileges are as necessary as table privileges.
 GRANT USAGE ON SCHEMA public TO backup_user;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO backup_user;
 GRANT USAGE ON SCHEMA analytics TO backup_user;
 GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO backup_user;
 GRANT USAGE ON SCHEMA monitoring TO backup_user;
 GRANT SELECT ON ALL TABLES IN SCHEMA monitoring TO backup_user;
+GRANT SELECT ON ALL SEQUENCES IN SCHEMA monitoring TO backup_user;
+GRANT USAGE ON SCHEMA ingest TO backup_user;
+GRANT SELECT ON ALL TABLES IN SCHEMA ingest TO backup_user;
 GRANT INSERT ON TABLE monitoring.backup_log TO backup_user;
+
+-- The GRANT ... ON ALL statements above are a point-in-time snapshot, and this
+-- file runs while analytics and ingest are still empty. Without these default
+-- privileges, backups would never cover the dbt models or Spark staging tables.
+ALTER DEFAULT PRIVILEGES FOR USER dbt_runner IN SCHEMA analytics
+GRANT SELECT ON TABLES TO backup_user;
+
+ALTER DEFAULT PRIVILEGES FOR USER spark_writer IN SCHEMA ingest
+GRANT SELECT ON TABLES TO backup_user;
 
 -- =========================================================
 -- 6) Alert writer (alert-receiver webhook)
