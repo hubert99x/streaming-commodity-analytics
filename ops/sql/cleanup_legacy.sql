@@ -105,6 +105,34 @@ BEGIN
     END LOOP;
 END $$;
 
+-- ---------------------------------------------------------
+-- 6) Predecessor of monitoring.kafka_lag
+--
+-- monitoring.kafka_consumer_lag stopped receiving rows when the lag monitor was
+-- rewritten to write monitoring.kafka_lag. No code, dashboard or alert rule
+-- references it, and ops/sql/init.sql does not create it.
+-- ---------------------------------------------------------
+DROP TABLE IF EXISTS monitoring.kafka_consumer_lag;
+
+-- ---------------------------------------------------------
+-- 7) Indexes from an earlier naming convention
+--
+-- These use the ix_ prefix and overlap the idx_ indexes created by
+-- ops/sql/create_indexes.sql, so they cost write throughput and disk without
+-- serving a query the current indexes do not.
+-- ---------------------------------------------------------
+DROP INDEX IF EXISTS public.ix_raw_prices_commodity_event_ts;
+DROP INDEX IF EXISTS monitoring.ix_kafka_lag_group_topic;
+DROP INDEX IF EXISTS monitoring.ix_kafka_lag_ts;
+DROP INDEX IF EXISTS monitoring.api_calls_ok_ts_idx;
+DROP INDEX IF EXISTS monitoring.api_calls_ts_idx;
+DROP INDEX IF EXISTS monitoring.idx_alert_events_severity;
+DROP INDEX IF EXISTS monitoring.idx_alert_events_state;
+DROP INDEX IF EXISTS monitoring.idx_alert_events_ts_utc;
+DROP INDEX IF EXISTS monitoring.idx_dead_letter_reason;
+DROP INDEX IF EXISTS monitoring.idx_dead_letter_stream_batch;
+DROP INDEX IF EXISTS monitoring.idx_dead_letter_ts;
+
 COMMIT;
 
 -- VACUUM cannot run inside a transaction block; reclaim the freed space with
