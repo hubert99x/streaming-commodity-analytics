@@ -73,6 +73,21 @@ def get_processed_offsets():
                 return {row[0]: row[1] for row in cur.fetchall()}
 
 
+def partition_lag(high: int, low: int, last_processed) -> int:
+    """
+    Number of messages still waiting on one partition.
+
+    `last_processed` is the highest offset already stored in raw_prices, or None
+    when the table holds no rows for this partition. In that case the count
+    starts at the log start offset rather than at zero: after the 90-day
+    retention removes the last row of a quiet partition, counting from zero
+    would report the entire partition as unprocessed and trip the critical lag
+    alert, even though Kafka has nothing left to deliver.
+    """
+    next_expected = low if last_processed is None else max(last_processed + 1, low)
+    return max(0, high - next_expected)
+
+
 def get_lag():
     """Calculate total and max-partition lag by comparing broker watermarks to processed offsets."""
     admin = AdminClient({"bootstrap.servers": KAFKA_BOOTSTRAP})
@@ -89,11 +104,9 @@ def get_lag():
 
     try:
         for p in partition_ids:
-            # high = next offset that will be assigned (i.e. end of partition)
-            # lag = high - (last_processed + 1) = number of unprocessed messages
-            _, high = consumer.get_watermark_offsets(TopicPartition(KAFKA_TOPIC, p), timeout=5)
-            last_processed = processed.get(p, -1)  # -1 if no records processed yet
-            lag = max(0, high - (last_processed + 1))
+            # low = oldest offset still retained, high = next offset to be assigned
+            low, high = consumer.get_watermark_offsets(TopicPartition(KAFKA_TOPIC, p), timeout=5)
+            lag = partition_lag(high, low, processed.get(p))
             total_lag += lag
             if lag > max_lag:
                 max_lag = lag
