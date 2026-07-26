@@ -10,7 +10,7 @@ groups:
       # ======================================================
       # CRITICAL: No new ingest for > 13 minutes (780s)
       # ======================================================
-      - uid: stale_ingest_7m
+      - uid: stale_ingest_13m
         title: Time Since Last Ingest > 13m
         condition: C
         for: 2m
@@ -62,7 +62,7 @@ groups:
       # ======================================================
       # WARNING: BTC heartbeat (last 20m) < 2
       # ======================================================
-      - uid: btc_events_last_15m_low
+      - uid: btc_events_last_20m_low
         title: BTC events (last 20m) < 2
         condition: C
         for: 2m
@@ -271,12 +271,21 @@ groups:
 
       # ======================================================
       # WARNING: Kafka consumer lag > 50
+      #
+      # This rule and the two below are the only ones whose query can legitimately
+      # return no rows: monitoring.kafka_lag_latest is empty until the kafka-lag
+      # service takes its first snapshot, so noDataState must stay OK — otherwise
+      # a freshly started stack raises a critical Kafka alert within two minutes.
+      #
+      # They also hard-code the consumer group and topic, which are configurable
+      # via KAFKA_CONSUMER_GROUP and KAFKA_TOPIC. Changing either env var without
+      # updating these three queries makes them silently match zero rows.
       # ======================================================
       - uid: kafka_lag_warn_gt_50
         title: "[WARN] Kafka lag > 50"
         condition: C
         for: 2m
-        noDataState: Alerting
+        noDataState: OK
         execErrState: Alerting
         annotations:
           summary: "Kafka consumer lag is above 50"
@@ -330,7 +339,7 @@ groups:
         title: "[CRIT] Kafka lag > 500"
         condition: C
         for: 2m
-        noDataState: Alerting
+        noDataState: OK
         execErrState: Alerting
         annotations:
           summary: "Kafka consumer lag is above 500"
@@ -438,7 +447,7 @@ groups:
         title: "[WARN] Kafka partition lag > 30"
         condition: C
         for: 2m
-        noDataState: Alerting
+        noDataState: OK
         execErrState: Alerting
         annotations:
           summary: "A single Kafka partition has lag above 30"
@@ -544,7 +553,7 @@ groups:
       # ======================================================
       # WARNING: mart_latest_prices stale (> 20 min)
       # ======================================================
-      - uid: mart_latest_prices_stale_15m
+      - uid: mart_latest_prices_stale_20m
         title: "[WARN] Stale mart_latest_prices (>20m)"
         condition: C
         for: 2m
@@ -595,3 +604,18 @@ groups:
                   reducer:
                     type: last
                   type: query
+# ======================================================
+# Remove rules whose UID was corrected above.
+#
+# File provisioning creates rules but never removes ones that disappear from the
+# file, so renaming a UID leaves the old rule behind and both fire at once. This
+# block cleans up instances provisioned before the rename; it is a no-op on a
+# fresh install, where these UIDs never existed.
+# ======================================================
+deleteRules:
+  - orgId: 1
+    uid: stale_ingest_7m
+  - orgId: 1
+    uid: btc_events_last_15m_low
+  - orgId: 1
+    uid: mart_latest_prices_stale_15m
