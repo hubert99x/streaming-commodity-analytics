@@ -1,7 +1,6 @@
 COMPOSE = docker compose
 
 CORE_SERVICES = postgres kafka spark-stream grafana producer dbt dbt-scheduler alert-receiver
-OPS_SERVICES  = backup-cron retention kafka-lag
 
 .PHONY: real dev ps health logs logs-core restart down downv rebuild \
         backup restore reset-system reset-restore \
@@ -64,13 +63,7 @@ rebuild:
 
 # Manual one-off backup (on-demand) executed inside the postgres container
 backup:
-	$(COMPOSE) exec postgres sh -lc '\
-	set -e; \
-	ts=$$(date +%Y%m%d_%H%M); \
-	echo "Creating backup: backup_$${ts}.dump"; \
-	pg_dump -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -F c -f "/backups/backup_$${ts}.dump"; \
-	echo "Backup saved: /backups/backup_$${ts}.dump"; \
-	'
+	@$(COMPOSE) --profile ops run --rm --no-deps backup-cron sh /ops/run_backup.sh
 
 # Restore from a chosen backup file
 # Usage: make restore FILE=backup_YYYYMMDD_HHMM.dump
