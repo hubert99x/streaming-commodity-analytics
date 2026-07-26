@@ -6,6 +6,7 @@ classification, API-call accounting and the exponential backoff state machine.
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from producer import producer
 from producer.producer import is_price_within_bounds, next_backoff, td_prices
@@ -19,7 +20,7 @@ def _response(status=200, body=None):
     resp.status_code = status
     resp.json.return_value = body if body is not None else {}
     if status >= 400:
-        resp.raise_for_status.side_effect = RuntimeError(f"HTTP {status}")
+        resp.raise_for_status.side_effect = requests.exceptions.HTTPError(f"HTTP {status}")
     else:
         resp.raise_for_status.return_value = None
     return resp
