@@ -8,9 +8,9 @@ services:
   postgres:
     image: postgres:16.14
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER?err}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD?err}
+      POSTGRES_DB: ${POSTGRES_DB?err}
       # Consumed by ops/sql/roles.sql on first init (psql \getenv), so .env
       # stays the single source of truth for every service account password.
       SPARK_DB_PASSWORD: ${SPARK_DB_PASSWORD?err}
@@ -205,6 +205,9 @@ services:
   # =========================
   grafana:
     image: grafana/grafana:13.1.1
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "127.0.0.1:3000:3000"
     env_file:
@@ -345,8 +348,8 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${SPARK_DB_USER}
-      POSTGRES_PASSWORD: ${SPARK_DB_PASSWORD}
+      POSTGRES_USER: ${SPARK_DB_USER?err}
+      POSTGRES_PASSWORD: ${SPARK_DB_PASSWORD?err}
 
       KAFKA_BOOTSTRAP: kafka:29092
       KAFKA_TOPIC: ${KAFKA_TOPIC}
@@ -409,6 +412,8 @@ services:
     build: ./producer
     depends_on:
       kafka:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     env_file:
       - .env
@@ -490,10 +495,10 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB}
-      DBT_DB_USER: ${DBT_DB_USER}
-      DBT_DB_PASSWORD: ${DBT_DB_PASSWORD}
-      POSTGRES_USER: ${DBT_DB_USER}
-      POSTGRES_PASSWORD: ${DBT_DB_PASSWORD}
+      DBT_DB_USER: ${DBT_DB_USER?err}
+      DBT_DB_PASSWORD: ${DBT_DB_PASSWORD?err}
+      POSTGRES_USER: ${DBT_DB_USER?err}
+      POSTGRES_PASSWORD: ${DBT_DB_PASSWORD?err}
     volumes:
       - ./dbt:/dbt
       - ./ops/sql:/ops/sql:ro
