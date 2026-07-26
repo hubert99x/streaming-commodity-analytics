@@ -1,6 +1,6 @@
 # Technical Documentation — Commodity Price Streaming System
 
-> Critical analysis. Last updated: 2026-03-19 (terminology and consistency revision).
+> Critical analysis. Last updated: 2026-07-26 (schema, role and alerting revision).
 
 ---
 
@@ -188,7 +188,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 **Key behaviors:**
 - **Trigger:** 300-second processing intervals. `maxOffsetsPerTrigger=5000` limits backpressure.
 - **Offset management:** Checkpoint directory (not Kafka consumer groups). Each Spark instance maintains its own offset state.
-- **Validation pipeline:** Multi-level checks per record (logic extracted to `spark/validation.py` for testability — 27 unit tests). Price bounds are duplicated across Spark (`spark/validation.py`) and producer (`producer.py:69-73`) — the producer maintains its own copy for early rejection before Kafka publish. These are kept in sync manually, not imported from a shared module. Validation checks per record:
+- **Validation pipeline:** Multi-level checks per record (logic extracted to `spark/validation.py` for testability — 27 unit tests). Price bounds are duplicated across Spark (`spark/validation.py`) and producer (`producer.py:69-73`) — the producer image does not ship `spark/`, so it maintains its own copy for early rejection before Kafka publish. The two definitions are not imported from a shared module, but a unit test asserts they are identical, so a drift fails CI rather than reaching production. Validation checks per record:
   - Null field detection (MISSING_FIELD errors)
   - Price positivity check
   - Schema version check (must be `1`)
@@ -211,7 +211,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 **Role:** Runs `dbt build` every 6 minutes and `dbt test` (with result logging) every 30 minutes.
 
 **Key behaviors:**
-- Python-based scheduler with `threading.Lock()` to prevent overlapping runs.
+- Python-based scheduler. A single loop invokes build, test and retention sequentially, so the three never overlap. A `threading.Lock()` guards each task as well, which never blocks today but keeps a future timer or thread from starting a second dbt invocation against the same warehouse.
 - Health heartbeat: writes timestamp to `/tmp/dbt_scheduler_alive`, checked by Docker health probe with 10-minute tolerance.
 - `dbt test` results parsed from `target/run_results.json` via `jq` and inserted into `monitoring.dbt_test_runs`.
 - 300-second timeout on subprocess execution.
@@ -219,7 +219,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 - **Non-root execution:** Runs as UID 1000 (`USER 1000` in Dockerfile). Container hardened with `cap_drop: ALL`.
 
 **Weaknesses:**
-- **If dbt build consistently exceeds 6 minutes, runs are silently skipped** (lock contention). There is no alert for "dbt build took too long" — only the file-marker health check would eventually fail after 10 minutes of no heartbeat.
+- **A slow build pushes the whole schedule back.** Each interval is measured from the end of the previous run, so a build that hits the 300-second subprocess timeout delays the following test and retention cycles instead of running them on time. There is no alert for "dbt build took too long" — only the file-marker health check would eventually fail after 10 minutes of no heartbeat.
 
 **Note:** Build duration is now tracked — each run logs `duration_ms=N` to stdout for operational visibility and trend analysis.
 
@@ -303,9 +303,9 @@ commodity   TEXT NOT NULL             -- gold, bitcoin, eurusd
 symbol      TEXT NOT NULL             -- XAU/USD, BTC/USD, EUR/USD
 price       DOUBLE PRECISION NOT NULL -- Validated: positive + within bounds
 currency    TEXT NOT NULL             -- Always "USD"
-event_ts    TIMESTAMP NOT NULL        -- Source timestamp (UTC)
+event_ts    TIMESTAMPTZ NOT NULL      -- Source timestamp (UTC)
 source      TEXT                      -- "twelvedata_rest"
-ingest_ts   TIMESTAMP                 -- Spark processing timestamp
+ingest_ts   TIMESTAMPTZ               -- Spark processing timestamp
 kafka_partition INTEGER               -- Audit trail
 kafka_offset    BIGINT                -- Audit trail
 ```
@@ -325,12 +325,16 @@ kafka_offset    BIGINT                -- Audit trail
 | Role | Schemas | Permissions |
 |------|---------|-------------|
 | `spark_writer` | public, ingest, monitoring | INSERT raw_prices, CREATE staging tables, INSERT DLQ |
-| `dbt_runner` | public, analytics, monitoring | SELECT raw_prices, CREATE analytics models, DELETE monitoring (retention) |
-| `grafana_read` | analytics, monitoring | SELECT on all analytics tables (auto-granted on new dbt objects) + SELECT on all monitoring tables and views |
+| `dbt_runner` | public, analytics, monitoring | SELECT raw_prices, CREATE analytics models, SELECT + DELETE monitoring (retention), INSERT dbt_test_runs |
+| `grafana_read` | public, analytics, monitoring | SELECT on all analytics tables (auto-granted on new dbt objects) + SELECT on all monitoring tables and views |
 | `producer_writer` | monitoring | INSERT api_calls |
-| `backup_user` | all | SELECT on all schemas + INSERT backup_log (used by pg_dump and backup logging) |
+| `backup_user` | all | SELECT on all tables and sequences + INSERT backup_log (used by pg_dump and backup logging) |
+| `alert_writer` | monitoring | INSERT alert_events |
+| `lag_writer` | public, monitoring | SELECT raw_prices, INSERT kafka_lag |
 
-**Notable:** `DEFAULT PRIVILEGES FOR USER dbt_runner` auto-grants SELECT to `grafana_read` on any new table dbt creates. This is a well-designed pattern that prevents missing grants when models are added.
+**Notable:** `DEFAULT PRIVILEGES FOR USER dbt_runner` auto-grants SELECT to `grafana_read` and `backup_user` on any new table dbt creates. This is a well-designed pattern that prevents missing grants when models are added, and keeps new models inside the backup scope.
+
+**Exception:** the `retention` container (ops profile) connects as the superuser rather than through one of the seven roles, because `VACUUM` requires table ownership, which cannot be delegated with a `GRANT`. See [SECURITY.md](SECURITY.md#database-roles).
 
 **Weakness:** The `backup_user` role passes the password via `PGPASSWORD` environment variable, which is visible in `docker inspect` and `/proc` on the host. A `.pgpass` file with restricted permissions would be more secure.
 
@@ -357,7 +361,7 @@ stg_raw_prices (VIEW)
 ### Model Details
 
 #### `stg_raw_prices` (View)
-Pass-through with explicit type casts and timezone normalization (`timestamptz` → naive UTC). Preserves Kafka partition/offset for lineage tracing. Defined via `{{ source('public', 'raw_prices') }}` with **source freshness SLA** (warn after 10 minutes, error after 20 minutes).
+Pass-through with explicit type casts. Timestamps stay `timestamptz`, exactly as `public.raw_prices` stores them — converting them to naive UTC here would make every downstream comparison against `now()` depend on the session timezone. Preserves Kafka partition/offset for lineage tracing. Defined via `{{ source('public', 'raw_prices') }}` with **source freshness SLA** (warn after 10 minutes, error after 20 minutes).
 
 #### `mart_latest_prices` (View)
 One row per commodity. Uses PostgreSQL `DISTINCT ON` with a 24-hour optimization window — scans last 24 hours first, falls back to full scan only for commodities missing from that window. Materialized as a view so each query reads the latest data directly from the staging layer.
@@ -412,7 +416,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 
 **Routing:** Critical and warning alerts → `postgres-webhook` contact point → alert-receiver → `monitoring.alert_events`.
 
-**`noDataState`:** Most alerts fire on no-data (no data = something is broken), except DLQ (no data = no bad records = OK).
+**`noDataState`:** Most alerts fire on no-data (no data = something is broken). Four rules use `OK` instead: DLQ (no rows = no bad records) and the three Kafka lag rules, whose queries filter `monitoring.kafka_lag_latest` by `group_id` and `topic` and therefore return nothing until `kafka-lag` takes its first measurement. Without this a fresh stack would raise a critical Kafka lag alert in its first minutes.
 
 ### Monitoring Views (materialized as SQL views)
 
@@ -450,7 +454,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 | CI supply chain | All GitHub Actions SHA-pinned to prevent tag-based supply chain attacks |
 | Trivy ignore policy | `.trivyignore` with expiry dates (`Expires: YYYY-MM-DD`) for quarterly review |
 | Port binding | All external ports bound to 127.0.0.1 |
-| RBAC | 5 distinct database roles with least-privilege grants |
+| RBAC | 7 distinct database roles with least-privilege grants |
 
 ### Security Gaps
 
@@ -488,6 +492,7 @@ cp .env.example .env
 #    - All passwords: Change from "change_me" to strong values
 #      (POSTGRES_PASSWORD, SPARK_DB_PASSWORD, DBT_DB_PASSWORD,
 #       GRAFANA_DB_PASSWORD, PRODUCER_DB_PASSWORD, BACKUP_DB_PASSWORD,
+#       ALERT_DB_PASSWORD, LAG_DB_PASSWORD,
 #       GF_SECURITY_ADMIN_PASSWORD, PGADMIN_DEFAULT_PASSWORD)
 nano .env
 
@@ -528,7 +533,7 @@ make dbt-deps          # Install dbt packages
 make dbt-debug         # Validate dbt connection
 
 make backup            # One-off database backup
-make restore FILE=backup_YYYYMMDD_HHMM.dump  # Restore from backup
+make restore FILE=backup_YYYYMMDD_HHMMSS.dump  # Restore from backup
 
 make down              # Stop all services (preserves data)
 make downv             # Stop + delete volumes (DESTROYS ALL DATA)
