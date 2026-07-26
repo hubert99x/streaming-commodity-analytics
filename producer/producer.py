@@ -145,6 +145,20 @@ def clamp(n: int, lo: int, hi: int) -> int:
     return max(lo, min(hi, n))
 
 
+def is_price_within_bounds(symbol: str, price: float) -> bool:
+    """
+    Pre-publish sanity check: reject absurd API values before they reach Kafka.
+
+    Symbols without configured bounds pass through; Spark validates every event
+    again before the write to Postgres (defense-in-depth).
+    """
+    bounds = PRICE_BOUNDS.get(symbol)
+    if bounds is None:
+        return True
+    lo, hi = bounds
+    return lo <= price <= hi
+
+
 def next_backoff(error_kind: str, multiplier: int):
     """
     Decide how long to wait after a failed fetch.
@@ -452,16 +466,13 @@ def main():
                 print(f"SKIP {commodity} ({symbol}) - no price in batch response", flush=True)
                 continue
 
-            # Pre-publish sanity check: reject absurd API values before Kafka
-            bounds = PRICE_BOUNDS.get(symbol)
-            if bounds is not None:
-                lo, hi = bounds
-                if price < lo or price > hi:
-                    print(
-                        f"REJECT {commodity} ({symbol}) - price {price} out of range [{lo}, {hi}]",
-                        flush=True,
-                    )
-                    continue
+            if not is_price_within_bounds(symbol, price):
+                lo, hi = PRICE_BOUNDS[symbol]
+                print(
+                    f"REJECT {commodity} ({symbol}) - price {price} out of range [{lo}, {hi}]",
+                    flush=True,
+                )
+                continue
 
             # Deterministic event_id: same (commodity, timestamp) always produces the same ID,
             # preventing semantic duplicates if the application retries a publish attempt.

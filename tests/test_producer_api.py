@@ -8,8 +8,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from producer import producer
-from producer.producer import next_backoff, td_prices
+from producer.producer import is_price_within_bounds, next_backoff, td_prices
 from spark.validation import PRICE_BOUNDS as SPARK_PRICE_BOUNDS
+from spark.validation import validate_event
 
 
 def _response(status=200, body=None):
@@ -171,3 +172,60 @@ def test_producer_price_bounds_match_spark_validation():
     bounds. This test is what keeps the two definitions from drifting apart.
     """
     assert producer.PRICE_BOUNDS == SPARK_PRICE_BOUNDS
+
+
+# ---- Pre-publish bounds rejection (defense-in-depth, first layer) ----
+
+@pytest.mark.parametrize(
+    "symbol, price",
+    [
+        ("XAU/USD", 4587.30),
+        ("BTC/USD", 65000.0),
+        ("EUR/USD", 1.085),
+    ],
+)
+def test_accepts_realistic_prices(symbol, price):
+    assert is_price_within_bounds(symbol, price) is True
+
+
+@pytest.mark.parametrize("symbol", sorted(producer.PRICE_BOUNDS))
+def test_bounds_are_inclusive(symbol):
+    lo, hi = producer.PRICE_BOUNDS[symbol]
+    assert is_price_within_bounds(symbol, lo) is True
+    assert is_price_within_bounds(symbol, hi) is True
+
+
+@pytest.mark.parametrize("symbol", sorted(producer.PRICE_BOUNDS))
+def test_rejects_prices_outside_bounds(symbol):
+    lo, hi = producer.PRICE_BOUNDS[symbol]
+    assert is_price_within_bounds(symbol, lo - 0.01) is False
+    assert is_price_within_bounds(symbol, hi + 0.01) is False
+
+
+def test_rejects_zero_and_negative_prices():
+    assert is_price_within_bounds("BTC/USD", 0.0) is False
+    assert is_price_within_bounds("BTC/USD", -1.0) is False
+
+
+def test_unknown_symbol_passes_to_spark_validation():
+    """No bounds configured means the producer defers to the Spark layer."""
+    assert is_price_within_bounds("XAG/USD", 999999.0) is True
+
+
+@pytest.mark.parametrize("symbol", sorted(producer.PRICE_BOUNDS))
+def test_both_validation_layers_agree_on_out_of_range_prices(symbol):
+    """A price the producer rejects must also be rejected by Spark validation."""
+    lo, _ = producer.PRICE_BOUNDS[symbol]
+    price = lo - 0.01
+    assert is_price_within_bounds(symbol, price) is False
+    event = {
+        "schema_version": 1,
+        "event_id": "e1",
+        "commodity": "x",
+        "symbol": symbol,
+        "price": price,
+        "currency": "USD",
+        "source": "twelvedata_rest",
+        "timestamp": "2026-07-26T12:00:00Z",
+    }
+    assert validate_event(event) == "INVALID_FIELD:price_out_of_range"
