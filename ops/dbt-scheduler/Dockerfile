@@ -1,7 +1,7 @@
-# dbt-scheduler image — built on a clean python:3.13-slim (Debian trixie)
+# dbt-scheduler image — built on a clean python:3.14-slim (Debian trixie)
 # instead of dbt-labs/dbt-postgres to avoid stale Debian bullseye CVEs in the
 # upstream image and to keep the base on a currently-supported Debian release.
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \

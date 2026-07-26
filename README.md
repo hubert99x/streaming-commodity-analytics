@@ -124,8 +124,8 @@ See [Operations Guide](docs/OPERATIONS.md#alert-rules-11-rules) for full alert r
 
 | Workflow | Trigger | Description |
 |----------|---------|-------------|
-| `python-quality.yml` | Push/PR | Ruff lint + pytest (Python 3.13) |
-| `dbt-ci.yml` | Push/PR | dbt build against ephemeral Postgres (Python 3.13) |
+| `python-quality.yml` | Push/PR | Ruff lint + pytest (Python 3.14) |
+| `dbt-ci.yml` | Push/PR | dbt build against ephemeral Postgres (Python 3.14) |
 | `security-trivy.yml` | Push/PR + weekly | Trivy filesystem & image scanning |
 
 ## Security
