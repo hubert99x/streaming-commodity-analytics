@@ -378,8 +378,18 @@ def main():
         flush=True,
     )
 
-    # Ensure topic exists with correct partition count
-    _ensure_topic(TOPIC, num_partitions=3)
+    # Ensure topic exists with correct partition count. Kafka may still be
+    # starting when the producer boots, so retry instead of exiting: every other
+    # failure in this loop backs off rather than killing the container.
+    for attempt in range(1, 11):
+        try:
+            _ensure_topic(TOPIC, num_partitions=3)
+            break
+        except Exception as e:
+            if attempt == 10:
+                raise
+            print(f"Kafka not ready ({e}); retrying in 10s [{attempt}/10]", flush=True)
+            time.sleep(10)
 
     # Kafka producer with idempotent delivery:
     # - enable.idempotence: prevents duplicate messages on network retries
