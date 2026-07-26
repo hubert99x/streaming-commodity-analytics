@@ -802,7 +802,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "select\r\n    to_char(event_ts, 'YYYY-Mon-DD') as \"Date\",\r\n    to_char(event_ts, 'HH24:MI:SS') as \"Time\",\r\n    symbol as \"Instrument\",\r\n    event_type as \"Event\",\r\n    round(price_change_pct, 2) as \"Change\",\r\n    case\r\n        when symbol = 'EUR/USD' then to_char(prev_price::numeric, 'FM9999999990.0000')\r\n        else to_char(prev_price::numeric, 'FM9999999990.00')\r\n    end as \"Prev Price\",\r\n    case\r\n        when symbol = 'EUR/USD' then to_char(current_price::numeric, 'FM9999999990.0000')\r\n        else to_char(current_price::numeric, 'FM9999999990.00')\r\n    end as \"Current Price\"\r\nfrom analytics.mart_price_events\r\norder by event_ts desc\r\nlimit 100;",
+          "rawSql": "select\r\n    to_char(event_ts AT TIME ZONE 'UTC', 'YYYY-Mon-DD') as \"Date\",\r\n    to_char(event_ts AT TIME ZONE 'UTC', 'HH24:MI:SS') as \"Time\",\r\n    symbol as \"Instrument\",\r\n    event_type as \"Event\",\r\n    round(price_change_pct, 2) as \"Change\",\r\n    case\r\n        when symbol = 'EUR/USD' then to_char(prev_price::numeric, 'FM9999999990.0000')\r\n        else to_char(prev_price::numeric, 'FM9999999990.00')\r\n    end as \"Prev Price\",\r\n    case\r\n        when symbol = 'EUR/USD' then to_char(current_price::numeric, 'FM9999999990.0000')\r\n        else to_char(current_price::numeric, 'FM9999999990.00')\r\n    end as \"Current Price\"\r\nfrom analytics.mart_price_events\r\norder by event_ts desc\r\nlimit 100;",
           "refId": "A",
           "sql": {
             "columns": [

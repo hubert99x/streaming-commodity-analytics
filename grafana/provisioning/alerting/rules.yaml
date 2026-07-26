@@ -568,7 +568,7 @@ groups:
               maxDataPoints: 1
               rawSql: |
                 SELECT COALESCE(
-                  EXTRACT(EPOCH FROM (now() - MAX(last_timestamp AT TIME ZONE 'UTC')))::bigint,
+                  EXTRACT(EPOCH FROM (now() - MAX(last_timestamp)))::bigint,
                   999999
                 ) AS v
                 FROM analytics.mart_latest_prices;
