@@ -61,14 +61,15 @@ rebuild:
 # - The backup daemon (backup-cron) runs every 2 hours
 # -------------------------
 
-# Manual one-off backup (on-demand) executed inside the postgres container
+# Manual one-off backup: runs the same script as the backup-cron daemon,
+# in a throwaway container, so a manual dump is logged and pruned identically
 backup:
 	@$(COMPOSE) --profile ops run --rm --no-deps backup-cron sh /ops/run_backup.sh
 
 # Restore from a chosen backup file
-# Usage: make restore FILE=backup_YYYYMMDD_HHMM.dump
+# Usage: make restore FILE=backup_YYYYMMDD_HHMMSS.dump
 restore:
-	@if [ -z "$(FILE)" ]; then echo "ERROR: FILE is required. Example: make restore FILE=backup_20260305_2200.dump"; exit 1; fi
+	@if [ -z "$(FILE)" ]; then echo "ERROR: FILE is required. Example: make restore FILE=backup_20260305_220000.dump"; exit 1; fi
 	$(COMPOSE) exec postgres sh -lc '\
 	set -e; \
 	echo "Restoring /backups/$(FILE) into $$POSTGRES_DB ..."; \
@@ -98,9 +99,9 @@ reset-system: downv
 	@$(COMPOSE) ps
 
 # Reset system + restore DB + rebuild dbt
-# Usage: make reset-restore FILE=backup_YYYYMMDD_HHMM.dump
+# Usage: make reset-restore FILE=backup_YYYYMMDD_HHMMSS.dump
 reset-restore: downv
-	@if [ -z "$(FILE)" ]; then echo "ERROR: FILE is required. Example: make reset-restore FILE=backup_20260305_2200.dump"; exit 1; fi
+	@if [ -z "$(FILE)" ]; then echo "ERROR: FILE is required. Example: make reset-restore FILE=backup_20260305_220000.dump"; exit 1; fi
 	$(COMPOSE) --profile ops up -d
 	@echo "Waiting for Postgres to become ready..."
 	@sleep 10

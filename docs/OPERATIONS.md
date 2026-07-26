@@ -103,7 +103,7 @@ ruff check producer tests ops spark  # Lint Python code (example: these are the 
 ### Backup & Restore
 ```bash
 make backup                                  # One-off pg_dump
-make restore FILE=backup_YYYYMMDD_HHMM.dump  # Restore from dump
+make restore FILE=backup_YYYYMMDD_HHMMSS.dump  # Restore from dump
 ```
 
 After restore, restart dependent services:

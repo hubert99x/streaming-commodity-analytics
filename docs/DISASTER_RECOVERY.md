@@ -22,7 +22,7 @@ docker compose exec postgres sh -lc 'ls -1t /backups/*.dump | head -n 5'
 
 **Restore** (simplest approach):
 ```bash
-make restore FILE=backup_YYYYMMDD_HHMM.dump
+make restore FILE=backup_YYYYMMDD_HHMMSS.dump
 docker compose restart spark-stream grafana dbt-scheduler
 ```
 
@@ -32,14 +32,14 @@ docker compose exec postgres sh -lc \
   'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
    DROP SCHEMA IF EXISTS analytics CASCADE;
    DROP SCHEMA IF EXISTS monitoring CASCADE;"'
-make restore FILE=backup_YYYYMMDD_HHMM.dump
+make restore FILE=backup_YYYYMMDD_HHMMSS.dump
 ```
 
 ## Full Reset + Restore
 
 Nuclear option — destroys all PostgreSQL data (`pgdata` volume), Kafka data (`kafka_data` volume), and Spark checkpoints before restoring from backup:
 ```bash
-make reset-restore FILE=backup_YYYYMMDD_HHMM.dump
+make reset-restore FILE=backup_YYYYMMDD_HHMMSS.dump
 ```
 
 ## What Happens After Restore
@@ -86,13 +86,13 @@ Backups are not automatically verified.
 
 To validate backup structure:
 ```bash
-pg_restore -l backup_YYYYMMDD_HHMM.dump
+pg_restore -l backup_YYYYMMDD_HHMMSS.dump
 ```
 
 To perform a full validation, restore into a temporary database inside the PostgreSQL container:
 ```bash
 docker compose exec postgres createdb -U "$POSTGRES_USER" test_restore
-docker compose exec postgres pg_restore -U "$POSTGRES_USER" -d test_restore /backups/backup_YYYYMMDD_HHMM.dump
+docker compose exec postgres pg_restore -U "$POSTGRES_USER" -d test_restore /backups/backup_YYYYMMDD_HHMMSS.dump
 ```
 If restore fails, the backup may be corrupted or inconsistent.
 
