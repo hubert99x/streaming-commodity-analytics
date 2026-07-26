@@ -12,7 +12,7 @@ Data is ingested every 6 minutes from Twelve Data API and streamed via Kafka. It
 - Near real-time pipeline (6–11 min latency)
 - Idempotent processing (UUID5 + ON CONFLICT)
 - Dead Letter Queue (DLQ) for invalid events
-- Data quality layer (64 dbt tests)
+- Data quality layer (65 dbt tests)
 - Observability (metrics, logs, alerts)
 - Backup & disaster recovery (pg_dump + restore)
 - Container hardening + RBAC

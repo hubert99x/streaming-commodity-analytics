@@ -379,7 +379,7 @@ Excludes observations after a >30-minute gap (prevents false extreme events from
 #### `mart_price_volatility_1h` (Incremental, 2-hour lookback)
 Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes current incomplete hour.
 
-### Data Quality Tests (64)
+### Data Quality Tests (65)
 
 - **Staging:** not_null and unique on event_id; accepted_values on commodity and currency; freshness bounds (`event_ts` within -24h to +1min of `ingest_ts`).
 - **Marts:** unique combination checks on composite keys; price sanity (> 0, min ≤ max); event_type accepted values.
@@ -608,4 +608,4 @@ The following issues were identified during development and have been resolved:
 
 The system demonstrates strong architectural foundations: idempotent data flow, role-based access control, checkpoint-based effectively-once semantics, commodity-aware analytics, and comprehensive alert coverage. The design choices are well-reasoned for the stated use case (3 instruments, 6-minute intervals, single-machine deployment).
 
-The P1 items (credentials, TLS) are standard for development environments and would be addressed before any production deployment. The system includes 64 dbt tests, 11 Grafana alert rules, CI pipelines (lint, test, security scanning), and automated operational services (backup, retention, lag monitoring) — providing a robust foundation that exceeds typical thesis requirements.
+The P1 items (credentials, TLS) are standard for development environments and would be addressed before any production deployment. The system includes 65 dbt tests, 11 Grafana alert rules, CI pipelines (lint, test, security scanning), and automated operational services (backup, retention, lag monitoring) — providing a robust foundation that exceeds typical thesis requirements.

@@ -115,6 +115,11 @@ models:
   - name: mart_price_events
     description: "Detected significant price changes between consecutive observations."
     data_tests:
+      # Matches the model's unique_key, so a broken incremental merge that
+      # duplicates an event is caught here rather than in the dashboard.
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["commodity", "symbol", "event_ts"]
       - dbt_utils.expression_is_true:
           arguments:
             expression: "price_change_pct is not null"
