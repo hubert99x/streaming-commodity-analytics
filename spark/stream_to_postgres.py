@@ -34,7 +34,9 @@ from validation import PRICE_BOUNDS, SUPPORTED_SCHEMA_VERSION
 # =========================
 # Env config
 # =========================
-KAFKA_CONSUMER_GROUP = os.getenv("KAFKA_CONSUMER_GROUP", "spark_stream_raw_prices")
+# NOTE: no consumer group is configured here on purpose — Structured Streaming
+# tracks offsets in its checkpoint, not in Kafka. KAFKA_CONSUMER_GROUP exists
+# only for the kafka-lag monitor and the Grafana lag queries.
 
 KAFKA_BOOTSTRAP = os.getenv(
     "KAFKA_BOOTSTRAP_SERVERS",
@@ -180,7 +182,10 @@ def _exec_merge_returning_count(spark: SparkSession, sql_text: str) -> int:
 
 
 def _ensure_staging_tables(spark: SparkSession):
-    """Create persistent staging tables and DLQ unique constraint once (idempotent)."""
+    """Create the two persistent staging tables once (idempotent).
+
+    The DLQ unique constraint they rely on is created by ops/sql/create_indexes.sql.
+    """
     _exec_sql_via_jdbc(spark, f"""
     CREATE TABLE IF NOT EXISTS {STAGING_TABLE} (
         event_id        TEXT,

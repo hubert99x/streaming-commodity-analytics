@@ -29,7 +29,10 @@ def validate_event(event: dict) -> Optional[str]:
     Validate a parsed price event dict.
 
     Returns an error reason string if the event is invalid, or None if valid.
-    Checks are ordered to match the PySpark validation chain exactly.
+    Checks are ordered to match the PySpark validation chain. One difference
+    remains: Spark also rejects a malformed timestamp string, because
+    to_timestamp() yields NULL, while this function only tests for a missing
+    value.
     """
     event_id = event.get("event_id")
     commodity = event.get("commodity")

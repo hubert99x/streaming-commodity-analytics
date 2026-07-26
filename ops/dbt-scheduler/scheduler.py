@@ -3,7 +3,7 @@ dbt scheduler — replaces cron with a Python loop.
 
 Advantages over cron:
 - Inherits container env vars directly (no env export hacks)
-- Prevents overlapping runs via threading lock
+- Serialises the three tasks so a slow dbt build cannot overlap the next one
 - Logs dbt build failures with exit codes (no silent || true)
 - Supports container healthcheck via /tmp/dbt_scheduler_alive
 """
@@ -29,7 +29,9 @@ POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
 
 HEALTH_FILE = Path("/tmp/dbt_scheduler_alive")
 
-# Threading lock prevents overlapping dbt runs (build and test share the lock)
+# The loop runs the three tasks sequentially, so this lock never blocks today.
+# It is kept as a guard: each task acquires it, so adding a timer or thread
+# later cannot start a second dbt invocation against the same warehouse.
 _lock = threading.Lock()
 _running = True
 _last_build_ok = True

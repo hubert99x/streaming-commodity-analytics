@@ -122,8 +122,8 @@ def grafana_webhook():
             raw_payload,
         ))
 
-    # Insert into Postgres — wrapped in try/except so a DB failure
-    # never crashes the webhook receiver (Grafana would stop retrying)
+    # A DB failure returns 500 rather than raising, so Grafana retries the
+    # delivery instead of dropping the alert.
     try:
         with contextlib.closing(_connect()) as conn:
             with conn:

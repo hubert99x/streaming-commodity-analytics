@@ -49,7 +49,8 @@ fi
 
 echo "[dbt-test] status=$status total=$total pass=$pass warn=$warn error=$error fail=$fail skip=$skip"
 
-# Use parameterized query via psql variables to prevent SQL injection
+# psql -v substitutes textually; :'v_env' and :'v_status' are literal-quoted,
+# the numeric values come from jq '… | length' so they are always integers
 # Note: psql ignores -v variables in -c mode, so we pipe the query via stdin
 PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -d "${POSTGRES_DB}" -U "${POSTGRES_USER}" \
   -v ON_ERROR_STOP=1 \

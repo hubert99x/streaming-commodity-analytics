@@ -3,12 +3,12 @@
 #
 # All previously suppressed CVEs (jaraco.context, wheel, setuptools, urllib3,
 # protobuf) were resolved on 2026-04-16 by:
-#   - Rebuilding dbt-scheduler on python:3.12-slim (Debian 13 trixie) to
+#   - Rebuilding dbt-scheduler on a plain python-slim base (Debian trixie) to
 #     replace the Debian 11 bullseye base from dbt-labs/dbt-postgres:1.9.0.
 #   - Adding `pip install --upgrade setuptools wheel urllib3 jaraco.context`
 #     to all four custom Python images (producer, alert-receiver, kafka-lag,
 #     dbt-scheduler) to patch transitive dependencies.
-#   - Bumping the Go builder in retention-image from 1.25.8 to 1.25.9.
+#   - Bumping the Go builder in retention-image to a patched release.
 #
 # Add new entries below only when a CVE cannot be patched at build time,
 # and include: package, brief justification, date added, expected review date.

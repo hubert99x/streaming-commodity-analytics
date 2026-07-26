@@ -16,9 +16,9 @@
 select
   commodity,
   symbol,
-  -- stg_raw_prices already exposes event_ts as a naive UTC timestamp, so no
-  -- further conversion here: an extra AT TIME ZONE would turn minute_bucket
-  -- back into timestamptz and make it the only mart column of that type.
+  -- No timezone conversion here: stg_raw_prices exposes event_ts as timestamptz
+  -- and every mart keeps that type, so comparisons against now() stay correct
+  -- regardless of the session timezone.
   date_trunc('minute', event_ts) as minute_bucket,
 
   -- Pick the latest price within the minute; event_id breaks ties
