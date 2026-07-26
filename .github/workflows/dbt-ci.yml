@@ -44,6 +44,9 @@ jobs:
             "dbt-adapters==1.24.5" \
             "dbt-common==1.38.0" \
             "dbt-postgres==1.11.0"
+          # Mirror the override from ops/dbt-scheduler/Dockerfile so CI resolves the
+          # same tree as the shipped image, deepdiff included.
+          python -m pip install --upgrade "deepdiff==9.1.0"
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
