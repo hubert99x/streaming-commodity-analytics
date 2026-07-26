@@ -5,7 +5,10 @@
 | Problem | Cause | Solution |
 |---------|-------|---------|
 | No new data in raw_prices | API failure or rate limit | Check `monitoring.api_calls` and producer logs |
-| No data in Grafana (initial startup) | System needs ~6 min for first data | Wait for first poll cycle + Spark trigger |
+| No data in Grafana (initial startup) | Price/status panels read views, charts read incremental marts | Allow ~15 min: 6 min poll + 5 min Spark trigger + 6 min dbt build |
+| Charts empty while price panels show a value | `mart_latest_prices` is a view (instant); `mart_minute_last_price` is an incremental table (needs a dbt build) | Wait one dbt cycle (6 min) |
+| Pipeline Latency above 360s right after a restart | Spark is draining the Kafka backlog accumulated while it was down | Expected — settles within a few micro-batches |
+| API P95 Latency shows tens of seconds | The panel window is 60 min and holds only ~10 calls, so one slow call dominates the percentile | Check `monitoring.api_calls` for `latency_ms > 10000`; the value ages out of the window |
 | Spark crash-loop | Dependency or Python compatibility issue | Check Spark logs and validation/typing issues in code |
 | Kafka Lag increasing (growing backlog) | Spark not keeping up or stuck | Check Spark logs and `monitoring.kafka_lag_latest` |
 | High Pipeline Latency | Producer (360s) + Spark (300s) cycles are not synchronized | Expected — worst-case latency ~660s, typical lower |

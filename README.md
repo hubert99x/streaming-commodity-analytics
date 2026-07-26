@@ -54,15 +54,15 @@ Compared to traditional batch ETL, it provides faster feedback loops, continuous
 
 | Decision | Why |
 |----------|-----|
-| **Idempotent inserts** (`ON CONFLICT DO NOTHING`) | Deterministic event IDs (UUID5) mean the same event always produces the same ID — enables safe replay after crashes without duplicates |
-| **Dead Letter Queue** | Invalid records land in `monitoring.dead_letter_events` with full payload — nothing is silently dropped |
-| **Checkpoint-based offsets** | Spark manages Kafka offsets via checkpoint dir, not consumer groups — avoids offset conflicts on restart |
-| **Persistent staging + advisory lock** | Batch data lands in a staging table, then merges into target under `pg_advisory_lock` — ensures safe concurrent writes without full table locks |
-| **Multi-layer validation** | Price bounds checked at producer (pre-publish) AND Spark (post-consume) — defense in depth |
-| **FX weekend gating** | XAU/USD, EUR/USD skipped Fri 22:00 – Sun 21:59 UTC; BTC runs 24/7 — prevents stale quotes from polluting analytics |
-| **7 database roles** | Each service gets only the permissions it needs — a compromised component cannot escalate beyond its own schema |
-| **Incremental dbt models** | Marts use lookback windows (30m–2h) — constant runtime regardless of table size |
-| **Per-commodity event thresholds** | BTC extreme = 1.5%, XAU = 0.6%, EUR = 0.25% — reflects actual market volatility profiles |
+| **Idempotent inserts** (`ON CONFLICT DO NOTHING`) | Deterministic event IDs (UUID5) mean the same event always produces the same ID – enables safe replay after crashes without duplicates |
+| **Dead Letter Queue** | Invalid records land in `monitoring.dead_letter_events` with full payload – nothing is silently dropped |
+| **Checkpoint-based offsets** | Spark manages Kafka offsets via checkpoint dir, not consumer groups – avoids offset conflicts on restart |
+| **Persistent staging + advisory lock** | Batch data lands in a staging table, then merges into target under `pg_advisory_lock` – ensures safe concurrent writes without full table locks |
+| **Multi-layer validation** | Price bounds checked at producer (pre-publish) AND Spark (post-consume) – defense in depth |
+| **FX weekend gating** | XAU/USD, EUR/USD skipped Fri 22:00 – Sun 21:59 UTC; BTC runs 24/7 – prevents stale quotes from polluting analytics |
+| **7 database roles** | Each service gets only the permissions it needs – a compromised component cannot escalate beyond its own schema |
+| **Incremental dbt models** | Marts use lookback windows (30m–2h) – constant runtime regardless of table size |
+| **Per-commodity event thresholds** | BTC extreme = 1.5%, XAU = 0.6%, EUR = 0.25% – reflects actual market volatility profiles |
 
 ## Services
 
@@ -156,7 +156,7 @@ cd streaming-commodity-analytics
 
 # 2. Configure
 cp .env.example .env
-# Edit .env — set TD_API_KEY at minimum, review passwords
+# Edit .env – set TD_API_KEY at minimum, review passwords
 
 # 3. Start (Kafka, Spark, PostgreSQL, dbt, Grafana + operational services)
 make real
@@ -167,16 +167,19 @@ make health          # all services should show "healthy" within ~2 min
 # 5. Open Grafana at http://localhost:3000 (credentials in .env)
 ```
 
-This starts all core services and operational jobs required for the full pipeline (Kafka, Spark, PostgreSQL, dbt, Grafana). Initial startup may take 1–2 minutes while containers initialize.
+This starts all core services and operational jobs required for the full pipeline (Kafka, Spark, PostgreSQL, dbt, Grafana).
+
+> **Containers become healthy in 1–2 minutes, but the dashboards need about 15 minutes to fill up.** That is the pipeline working as designed, not a fault: the producer polls every 6 minutes, Spark processes a micro-batch every 5 minutes, and dbt rebuilds the analytical models every 6 minutes. Price and market-status panels appear first because they read views; the time series charts arrive one dbt cycle later because they read incremental tables.
 
 ### What to Expect After Startup
 
 - Producer polls Twelve Data API every **6 minutes**
 - Spark processes micro-batches every **5 minutes** (trigger interval)
 - dbt transforms run every **6 minutes**, tests every **30 minutes**
-- First data appears in Grafana after **~6–12 minutes** (first poll + Spark trigger)
-- On weekends, only BTC/USD updates continuously — XAU/USD and EUR/USD are gated (Fri 22:00 – Sun 21:59 UTC)
-- You can verify ingestion directly in PostgreSQL (`public.raw_prices`) — see [Troubleshooting](docs/TROUBLESHOOTING.md#diagnostics)
+- Prices and market status appear in Grafana after **~6–12 minutes** (first poll + Spark trigger) – these panels read views
+- Time series charts need one more dbt cycle, so **allow ~15 minutes** before judging the dashboards – they read incremental marts
+- On weekends, only BTC/USD updates continuously – XAU/USD and EUR/USD are gated (Fri 22:00 – Sun 21:59 UTC)
+- You can verify ingestion directly in PostgreSQL (`public.raw_prices`) – see [Troubleshooting](docs/TROUBLESHOOTING.md#diagnostics)
 - Kafka topic activity can be inspected via Kafka UI (`make dev`, port 8080)
 - If services are not healthy, check logs: `make logs-core`
 

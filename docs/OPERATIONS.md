@@ -122,6 +122,7 @@ Note: Kafka data and Spark checkpoints are not included in the backup. After res
 make down
 make real
 ```
+Give the pipeline ~15 minutes before judging the dashboards (6 min poll + 5 min Spark trigger + 6 min dbt build). While Spark drains the backlog that built up during the downtime, `Pipeline Latency` can briefly exceed its 360s threshold.
 
 **Full reset (DESTROYS all data):**
 ```bash
