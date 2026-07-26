@@ -384,7 +384,9 @@ def main():
     # Kafka producer with idempotent delivery:
     # - enable.idempotence: prevents duplicate messages on network retries
     # - acks=all: waits for all replicas to acknowledge (strongest durability)
-    # - linger.ms=0: send immediately (low-volume, latency-sensitive)
+    # - linger.ms=0: send immediately (low-volume, latency-sensitive).
+    #   Do not add queue.buffering.max.ms — librdkafka treats it as an alias of
+    #   linger.ms, so setting both leaves the effective value ambiguous.
     producer = Producer(
         {
             "bootstrap.servers": KAFKA_BOOTSTRAP,
@@ -392,7 +394,6 @@ def main():
             "acks": "all",
             "retries": 10,
             "linger.ms": 0,
-            "queue.buffering.max.ms": 1000,
         }
     )
 
@@ -467,7 +468,7 @@ def main():
                 continue
 
             if not is_price_within_bounds(symbol, price):
-                lo, hi = PRICE_BOUNDS[symbol]
+                lo, hi = PRICE_BOUNDS.get(symbol, (None, None))
                 print(
                     f"REJECT {commodity} ({symbol}) - price {price} out of range [{lo}, {hi}]",
                     flush=True,
