@@ -32,7 +32,7 @@ These controls reduce the attack surface and limit the impact of a compromised c
 | Control | Implementation |
 |---------|---------------|
 | Webhook auth | Alert-receiver requires `ALERT_WEBHOOK_TOKEN` (mandatory unless explicitly disabled) |
-| Database RBAC | 5 distinct roles with least-privilege grants |
+| Database RBAC | 7 distinct roles with least-privilege grants |
 | Pre-commit hooks | gitleaks (secret detection in source code) |
 | Code quality | ruff (Python linting) |
 | CI supply chain | All GitHub Actions SHA-pinned to prevent tag-based attacks |
@@ -44,16 +44,20 @@ The database access model follows the principle of least privilege — each serv
 | Role | Schemas | Permissions |
 |------|---------|-------------|
 | `spark_writer` | public, ingest, monitoring | INSERT raw_prices, CREATE staging tables, INSERT DLQ |
-| `dbt_runner` | public, analytics, monitoring | SELECT raw_prices, CREATE analytics models, DELETE monitoring (retention) |
+| `dbt_runner` | public, analytics, monitoring | SELECT raw_prices, CREATE analytics models, SELECT + DELETE monitoring (retention), INSERT dbt_test_runs |
 | `grafana_read` | analytics, monitoring | SELECT on all analytics tables (auto-granted on new dbt objects) + SELECT on all monitoring tables and views |
 | `producer_writer` | monitoring | INSERT api_calls |
-| `backup_user` | all | SELECT on all schemas + INSERT backup_log (used by pg_dump and backup logging) |
+| `backup_user` | all | SELECT on all schemas and sequences + INSERT backup_log (used by pg_dump and backup logging) |
+| `alert_writer` | monitoring | INSERT alert_events |
+| `lag_writer` | public, monitoring | SELECT raw_prices, INSERT kafka_lag |
 
-`DEFAULT PRIVILEGES FOR USER dbt_runner` auto-grants SELECT to `grafana_read` on any new table dbt creates. No role has superuser privileges; access is restricted to specific schemas and operations required by each service.
+`DEFAULT PRIVILEGES` auto-grants SELECT to `grafana_read` and `backup_user` on any new object dbt or Spark creates, so a new model is visible to dashboards and covered by backups without a manual grant.
+
+**One documented exception.** The `retention` container (ops profile) connects as the superuser rather than through one of the seven roles. `VACUUM` can only be executed by the owner of a table, and ownership cannot be delegated through a `GRANT`, so a dedicated role could run the `DELETE` half of the cycle but not the `VACUUM` half. Splitting it would mean two connections for one job with no security gain, since the container would still need owner rights. Everything else — Spark, dbt, Grafana, the producer, backups, the alert receiver and the lag monitor — uses a role scoped to the tables it touches.
 
 ## CI Security Scanning
 
-Trivy scans run automatically in CI on push/PR and weekly. Example local scan:
+Trivy scans run automatically in CI on push and pull requests. Example local scan:
 ```bash
 trivy image --scanners vuln --severity CRITICAL,HIGH --ignore-unfixed streaming_system-producer
 ```
