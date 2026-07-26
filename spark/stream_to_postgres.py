@@ -269,10 +269,9 @@ def make_foreach_batch(spark: SparkSession):
             _ensure_staging_tables(spark)
             staging_ready = True
 
-        # Cache the batch before touching it. Every action below re-evaluates the
-        # plan otherwise, including the current_timestamp() behind ingest_ts, so
-        # rows from one micro-batch would be stamped with different ingest times
-        # and the measured pipeline latency would drift within a single batch.
+        # Cache the batch: isEmpty(), the good/bad count and the two writes below
+        # are four separate actions, each of which would otherwise re-read the
+        # micro-batch from Kafka and re-run the validation chain.
         batch_df.persist()
         try:
             _process_batch(batch_df, batch_id)
