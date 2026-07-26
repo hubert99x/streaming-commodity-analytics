@@ -194,18 +194,23 @@ This starts all core services and operational jobs required for the full pipelin
 ```
 streaming-commodity-analytics/
 ├── producer/              # Python API producer
-├── spark/                 # Spark Structured Streaming job
-├── dbt/                   # dbt models (staging + marts)
+├── spark/                 # Spark Structured Streaming job + shared validation
+├── dbt/
+│   ├── models/            #   dbt models (staging + marts)
+│   └── tests/             #   Singular SQL test (price jump detection)
 ├── ops/                   # Operational services (monitoring, alerts, scheduling)
 │   ├── alert-receiver/    #   Flask webhook listener
+│   ├── backup/            #   pg_dump script shared by backup-cron and `make backup`
 │   ├── dbt-scheduler/     #   Automated dbt runs
 │   ├── kafka-lag/         #   Consumer lag monitor
-│   └── sql/               #   Init schema, grants, retention SQL
+│   ├── retention-image/   #   Retention daemon image (DELETE + weekly VACUUM)
+│   └── sql/               #   Roles, schema, grants, indexes, retention, vacuum
 ├── grafana/
 │   ├── dashboards/        #   3 provisioned dashboard JSONs
 │   └── provisioning/      #   Datasource, dashboard, alerting config
 ├── tests/                 #   Unit tests (pytest)
 ├── docs/                  #   Architecture diagrams, technical docs
+├── .ci/dbt/               #   dbt profile used by the CI workflow
 ├── .github/workflows/     #   CI pipelines
 ├── docker-compose.yml     #   All service definitions
 ├── Makefile               #   Common commands
