@@ -37,7 +37,7 @@ make restore FILE=backup_YYYYMMDD_HHMMSS.dump
 
 ## Full Reset + Restore
 
-Nuclear option — destroys all PostgreSQL data (`pgdata` volume), Kafka data (`kafka_data` volume), and Spark checkpoints before restoring from backup:
+Nuclear option – destroys all PostgreSQL data (`pgdata` volume), Kafka data (`kafka_data` volume), and Spark checkpoints before restoring from backup:
 ```bash
 make reset-restore FILE=backup_YYYYMMDD_HHMMSS.dump
 ```
@@ -47,8 +47,8 @@ make reset-restore FILE=backup_YYYYMMDD_HHMMSS.dump
 - PostgreSQL data is restored to the selected backup state
 - Kafka data is NOT restored (separate volume)
 - Spark checkpoints determine replay behavior:
-  - If checkpoints exist — Spark continues from last processed offsets
-  - If checkpoints are removed — full reprocessing from Kafka
+  - If checkpoints exist – Spark continues from last processed offsets
+  - If checkpoints are removed – full reprocessing from Kafka
 
 If Kafka still contains newer events than the restored PostgreSQL state, Spark may reprocess them after restart. This may result in duplicate processing attempts (handled safely via idempotent writes) or temporary data gaps depending on checkpoint state. If Kafka retention is shorter than the backup age, some historical data may be permanently lost and cannot be reprocessed.
 
@@ -100,9 +100,9 @@ If restore fails, the backup may be corrupted or inconsistent.
 
 | Volume | Data | Recreatable? |
 |--------|------|-------------|
-| pgdata | All database data | **NO** — back up before `make downv` |
+| pgdata | All database data | **NO** – back up before `make downv` |
 | kafka_data | Kafka logs/offsets | Yes (Spark replays from checkpoint) |
 | spark_checkpoints | Spark offset state | Partially (earliest restarts from beginning) |
 | spark_ivy_cache | Maven dependency cache | Yes (re-downloaded on start) |
 | grafana_data | Grafana state | Yes (provisioned from config files) |
-| ./backups | pg_dump archives | **NO** — stored on host filesystem |
+| ./backups | pg_dump archives | **NO** – stored on host filesystem |

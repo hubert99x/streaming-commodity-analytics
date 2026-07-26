@@ -32,7 +32,7 @@ If the system is not working correctly, follow this order:
    ```
 
 6. **Check Grafana dashboards:**
-   - If data exists in PostgreSQL but not in Grafana — visualization or query issue, not a pipeline problem
+   - If data exists in PostgreSQL but not in Grafana – visualization or query issue, not a pipeline problem
 
 ### Data looks incorrect (spikes, missing values, anomalies)
 
@@ -65,11 +65,11 @@ If `event_ts` is not advancing despite successful API calls, the issue is likely
 
 ### How to interpret results
 
-- If `pipeline_metrics` shows high `time_since_last_ingest_seconds` — ingestion problem (producer or API)
-- If API errors are present — external dependency issue (Twelve Data)
-- If `raw_prices` is not updating — Spark or Kafka issue
-- If Kafka lag is increasing — Spark is slower than ingestion or stalled
-- If all checks are healthy and data is flowing — pipeline is operating correctly
+- If `pipeline_metrics` shows high `time_since_last_ingest_seconds` – ingestion problem (producer or API)
+- If API errors are present – external dependency issue (Twelve Data)
+- If `raw_prices` is not updating – Spark or Kafka issue
+- If Kafka lag is increasing – Spark is slower than ingestion or stalled
+- If all checks are healthy and data is flowing – pipeline is operating correctly
 
 ## Commands
 
@@ -112,8 +112,8 @@ docker compose restart spark-stream grafana dbt-scheduler
 ```
 
 Note: Kafka data and Spark checkpoints are not included in the backup. After restore:
-- If checkpoints exist — Spark continues from last known offsets
-- If checkpoints were removed — full reprocessing from Kafka
+- If checkpoints exist – Spark continues from last known offsets
+- If checkpoints were removed – full reprocessing from Kafka
 
 ## Common Scenarios
 
@@ -203,16 +203,16 @@ Spark will re-read from the earliest available Kafka offset and reprocess all me
 
 All alerts evaluate every 30s and require the condition to persist for 2 minutes before firing. Alerts are sent to a Flask webhook receiver (`alert-receiver:5000`) which logs them to `monitoring.alert_events`. Use the [Troubleshooting guide](TROUBLESHOOTING.md) to diagnose and resolve triggered alerts.
 
-Alerts are evaluated continuously — short spikes may not trigger alerts unless they persist for the configured duration.
+Alerts are evaluated continuously – short spikes may not trigger alerts unless they persist for the configured duration.
 
 Severity levels:
-- **critical** — requires immediate investigation (pipeline may be broken)
-- **warning** — degraded state, monitor closely
+- **critical** – requires immediate investigation (pipeline may be broken)
+- **warning** – degraded state, monitor closely
 
 | Rule | Severity | Condition |
 |------|----------|-----------|
 | Time Since Last Ingest > 13m | critical | No new rows in `raw_prices` for 780s |
-| BTC events (20m) < 2 | warning | BTC is 24/7 — fewer than 2 events means pipeline stall |
+| BTC events (20m) < 2 | warning | BTC is 24/7 – fewer than 2 events means pipeline stall |
 | API errors (18m) >= 1 | warning | Any API error in last 3 poll cycles |
 | API errors (18m) >= 3 | critical | Sustained API failures |
 | DLQ events (15m) > 0 | warning | Malformed records detected |
@@ -227,17 +227,17 @@ Severity levels:
 
 All three dashboards are auto-provisioned from JSON files in `grafana/dashboards/`.
 
-**Market Overview** — near real-time operational view of the entire pipeline:
+**Market Overview** – near real-time operational view of the entire pipeline:
 - Live price charts (XAU/USD, BTC/USD, EUR/USD)
 - Pipeline Health: API Idle Time, Events per Cycle, Kafka Consumer Lag, Ingest Idle Time
 - API Metrics: calls count, errors, P95 latency, success rate
 
-**Market Analysis** — analytical view of price behavior:
+**Market Analysis** – analytical view of price behavior:
 - Price Statistics table (latest price, min/max, range, std dev per instrument)
 - Hourly Price Change (%) time series
 - Recent Price Events table (MEDIUM / LARGE / EXTREME moves)
 
-**Pipeline & Data Quality** — monitoring and diagnostics:
+**Pipeline & Data Quality** – monitoring and diagnostics:
 - Pipeline Status & Latency, Throughput per cycle (bar chart)
 - DLQ: events count (24h), DLQ Rate, DLQ Log table, DLQ Events per Day (7d)
 - dbt: test freshness (every 30min), pass rate, test runs table
@@ -247,9 +247,9 @@ All three dashboards are auto-provisioned from JSON files in `grafana/dashboards
 
 | Volume | Data | Recreatable? |
 |--------|------|-------------|
-| pgdata | All database data | **NO** — back up before `make downv` |
+| pgdata | All database data | **NO** – back up before `make downv` |
 | kafka_data | Kafka logs/offsets | Yes (Spark replays from checkpoint) |
 | spark_checkpoints | Spark offset state | Partially (earliest restarts from beginning, latest skips backlog) |
 | spark_ivy_cache | Maven dependency cache | Yes (re-downloaded on start) |
 | grafana_data | Grafana state | Yes (provisioned from config files) |
-| ./backups | pg_dump archives | **NO** — stored on host filesystem |
+| ./backups | pg_dump archives | **NO** – stored on host filesystem |

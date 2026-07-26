@@ -1,4 +1,4 @@
-# Technical Documentation — Commodity Price Streaming System
+# Technical Documentation – Commodity Price Streaming System
 
 > Critical analysis. Last updated: 2026-07-26 (schema, role and alerting revision).
 
@@ -178,7 +178,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 - **Graceful shutdown:** SIGINT/SIGTERM handlers flush the Kafka producer buffer before exit.
 
 **Weaknesses:**
-- **No circuit breaker.** Exponential backoff can reach 10+ minutes. There is no alert mechanism if the producer enters prolonged backoff — the system just goes quiet.
+- **No circuit breaker.** Exponential backoff can reach 10+ minutes. There is no alert mechanism if the producer enters prolonged backoff – the system just goes quiet.
 - **Global mutable `_pg_conn`.** Safe in the current single-threaded design, but will silently corrupt if the producer is ever made concurrent.
 
 ### 3.2 Spark Structured Streaming (`spark/stream_to_postgres.py`)
@@ -188,7 +188,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 **Key behaviors:**
 - **Trigger:** 300-second processing intervals. `maxOffsetsPerTrigger=5000` limits backpressure.
 - **Offset management:** Checkpoint directory (not Kafka consumer groups). Each Spark instance maintains its own offset state.
-- **Validation pipeline:** Multi-level checks per record (logic extracted to `spark/validation.py` for testability — 27 unit tests). Price bounds are duplicated across Spark (`spark/validation.py`) and producer (`producer.py:69-73`) — the producer image does not ship `spark/`, so it maintains its own copy for early rejection before Kafka publish. The two definitions are not imported from a shared module, but a unit test asserts they are identical, so a drift fails CI rather than reaching production. Validation checks per record:
+- **Validation pipeline:** Multi-level checks per record (logic extracted to `spark/validation.py` for testability – 27 unit tests). Price bounds are duplicated across Spark (`spark/validation.py`) and producer (`producer.py:69-73`) – the producer image does not ship `spark/`, so it maintains its own copy for early rejection before Kafka publish. The two definitions are not imported from a shared module, but a unit test asserts they are identical, so a drift fails CI rather than reaching production. Validation checks per record:
   - Null field detection (MISSING_FIELD errors)
   - Price positivity check
   - Schema version check (must be `1`)
@@ -197,7 +197,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 - **DLQ:** Bad records → `ingest.dlq_staging` → merged into `monitoring.dead_letter_events` with its own advisory lock (key 2) and unique constraint to prevent duplicates on batch replay.
 - **JDBC timeouts:** `connectTimeout` and `socketTimeout` (configurable via `JDBC_CONNECT_TIMEOUT` and `JDBC_SOCKET_TIMEOUT` env vars, defaults 10s/30s) prevent indefinite hangs on Postgres connection issues.
 - **Health check:** Docker liveness probe checks both that `spark-submit` process is alive and that checkpoint directory was modified within the last 10 minutes, detecting both crashes and stalled processing.
-- **Deduplication:** Handled entirely by PostgreSQL `ON CONFLICT (event_id) DO NOTHING` — no in-batch `dropDuplicates` needed. **Conflict-skipped rows are counted and logged** (`conflict_skipped=N`) for observability, distinguishing healthy idempotent replays from data quality issues.
+- **Deduplication:** Handled entirely by PostgreSQL `ON CONFLICT (event_id) DO NOTHING` – no in-batch `dropDuplicates` needed. **Conflict-skipped rows are counted and logged** (`conflict_skipped=N`) for observability, distinguishing healthy idempotent replays from data quality issues.
 - **DLQ write failure tracking:** If DLQ staging fails, the lost record count is logged with a structured `DLQ_WRITE_FAILURE` tag and `lost_records=N` for grep-based alerting.
 - **Advisory lock retry:** `pg_advisory_unlock` retries up to 3 times before giving up, preventing deadlocks from transient connection issues.
 
@@ -219,9 +219,9 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 - **Non-root execution:** Runs as UID 1000 (`USER 1000` in Dockerfile). Container hardened with `cap_drop: ALL`.
 
 **Weaknesses:**
-- **A slow build pushes the whole schedule back.** Each interval is measured from the end of the previous run, so a build that hits the 300-second subprocess timeout delays the following test and retention cycles instead of running them on time. There is no alert for "dbt build took too long" — only the file-marker health check would eventually fail after 10 minutes of no heartbeat.
+- **A slow build pushes the whole schedule back.** Each interval is measured from the end of the previous run, so a build that hits the 300-second subprocess timeout delays the following test and retention cycles instead of running them on time. There is no alert for "dbt build took too long" – only the file-marker health check would eventually fail after 10 minutes of no heartbeat.
 
-**Note:** Build duration is now tracked — each run logs `duration_ms=N` to stdout for operational visibility and trend analysis.
+**Note:** Build duration is now tracked – each run logs `duration_ms=N` to stdout for operational visibility and trend analysis.
 
 ### 3.4 Alert Receiver (`ops/alert-receiver/app.py`)
 
@@ -239,7 +239,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 
 **Key design:** Because Spark uses checkpoint-based offsets (not consumer groups), this service cannot use standard Kafka consumer-group lag tools. Instead, it queries `MAX(kafka_offset)` per partition from `public.raw_prices` and compares against Kafka's `get_watermark_offsets()`.
 
-**Weakness:** Lag is measured against successfully-written Postgres rows, not against Spark's internal checkpoint. If Spark consumes a batch but fails during the staging merge, the lag monitor reports it as unconsumed — which is technically correct from a data perspective but may overstate the actual problem.
+**Weakness:** Lag is measured against successfully-written Postgres rows, not against Spark's internal checkpoint. If Spark consumes a batch but fails during the staging merge, the lag monitor reports it as unconsumed – which is technically correct from a data perspective but may overstate the actual problem.
 
 ### 3.6 Backup & Retention
 
@@ -251,7 +251,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 - **Backups are unencrypted.** Stored as plain `pg_dump` files on the host filesystem. No encryption at rest.
 - **No restore testing.** No automated verification that backups can be successfully restored.
 
-**Note:** Retention runs in two places: the dbt-scheduler (built-in, every 24h, so cleanup works without the ops profile) and the standalone `retention` daemon (ops profile, every 24h). Both execute the same `retention.sql`, which contains only `DELETE` statements and is idempotent. `VACUUM (ANALYZE)` lives in a separate `vacuum.sql` run weekly by the standalone daemon alone, because it requires table ownership that `dbt_runner` does not have. All tables — `raw_prices`, `dead_letter_events`, `alert_events`, `api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log` — are pruned at 90-day TTL. The `dbt_runner` role holds SELECT and DELETE on those tables.
+**Note:** Retention runs in two places: the dbt-scheduler (built-in, every 24h, so cleanup works without the ops profile) and the standalone `retention` daemon (ops profile, every 24h). Both execute the same `retention.sql`, which contains only `DELETE` statements and is idempotent. `VACUUM (ANALYZE)` lives in a separate `vacuum.sql` run weekly by the standalone daemon alone, because it requires table ownership that `dbt_runner` does not have. All tables – `raw_prices`, `dead_letter_events`, `alert_events`, `api_calls`, `kafka_lag`, `dbt_test_runs`, `backup_log` – are pruned at 90-day TTL. The `dbt_runner` role holds SELECT and DELETE on those tables.
 
 ---
 
@@ -361,10 +361,10 @@ stg_raw_prices (VIEW)
 ### Model Details
 
 #### `stg_raw_prices` (View)
-Pass-through with explicit type casts. Timestamps stay `timestamptz`, exactly as `public.raw_prices` stores them — converting them to naive UTC here would make every downstream comparison against `now()` depend on the session timezone. Preserves Kafka partition/offset for lineage tracing. Defined via `{{ source('public', 'raw_prices') }}` with **source freshness SLA** (warn after 10 minutes, error after 20 minutes).
+Pass-through with explicit type casts. Timestamps stay `timestamptz`, exactly as `public.raw_prices` stores them – converting them to naive UTC here would make every downstream comparison against `now()` depend on the session timezone. Preserves Kafka partition/offset for lineage tracing. Defined via `{{ source('public', 'raw_prices') }}` with **source freshness SLA** (warn after 10 minutes, error after 20 minutes).
 
 #### `mart_latest_prices` (View)
-One row per commodity. Uses PostgreSQL `DISTINCT ON` with a 24-hour optimization window — scans last 24 hours first, falls back to full scan only for commodities missing from that window. Materialized as a view so each query reads the latest data directly from the staging layer.
+One row per commodity. Uses PostgreSQL `DISTINCT ON` with a 24-hour optimization window – scans last 24 hours first, falls back to full scan only for commodities missing from that window. Materialized as a view so each query reads the latest data directly from the staging layer.
 
 #### `mart_minute_last_price` (Incremental, 30-min lookback)
 1-minute buckets holding the last, min and max price (no opening price, so this is not a full OHLC candle). Picks the **last** price per minute via `array_agg(price ORDER BY event_ts DESC, event_id DESC)[1]`, where `event_id` breaks ties on identical timestamps. Includes event count (`n`). Post-hook creates a `(minute_bucket DESC)` index.
@@ -387,7 +387,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 
 - **Staging:** not_null and unique on event_id; accepted_values on commodity and currency; freshness bounds (`event_ts` within -24h to +1min of `ingest_ts`).
 - **Marts:** unique combination checks on composite keys; price sanity (> 0, min ≤ max); event_type accepted values.
-- **Custom SQL test:** `test_price_jump.sql` — detects unrealistic minute-to-minute jumps per commodity (EUR >5%, XAU >10%, BTC >30%).
+- **Custom SQL test:** `test_price_jump.sql` – detects unrealistic minute-to-minute jumps per commodity (EUR >5%, XAU >10%, BTC >30%).
 
 **Weaknesses:**
 - **Incremental lookback edge case.** If `dbt build` is skipped for >30 minutes (scheduler blocked or container restarting), `mart_minute_last_price`'s 30-minute lookback window may miss late-arriving data from before the gap.
@@ -432,7 +432,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 4. **No Spark streaming metrics.** Microbatch duration, watermark lag, and task counts are not exposed. *(Partially mitigated: batch log now includes `inserted`, `conflict_skipped`, `dlq_write_failed`, `ms` per batch.)*
 5. **No Postgres table size monitoring.** No alert for `raw_prices` approaching disk capacity.
 6. **No alert for alert-receiver downtime.** If the webhook receiver crashes, all alerts are silently lost. The health check will restart it, but there's a gap.
-7. **No cross-commodity consistency check.** If BTC has 100 events/hour but XAU has 0 (broken API for one symbol), no alert fires — only the BTC-specific heartbeat exists.
+7. **No cross-commodity consistency check.** If BTC has 100 events/hour but XAU has 0 (broken API for one symbol), no alert fires – only the BTC-specific heartbeat exists.
 
 ---
 
@@ -487,7 +487,7 @@ Hourly volatility: stddev, range, range_pct (`(max-min)/avg * 100`). Excludes cu
 cd streaming_system
 cp .env.example .env
 
-# 2. Edit .env — REQUIRED changes:
+# 2. Edit .env – REQUIRED changes:
 #    - TD_API_KEY: Your Twelve Data API key
 #    - All passwords: Change from "change_me" to strong values
 #      (POSTGRES_PASSWORD, SPARK_DB_PASSWORD, DBT_DB_PASSWORD,
@@ -541,23 +541,23 @@ make downv             # Stop + delete volumes (DESTROYS ALL DATA)
 
 ### Post-Deployment Verification Checklist
 
-1. **Grafana** — Open `http://127.0.0.1:3000`, login with configured admin credentials, verify market_overview dashboard shows data.
-2. **Producer** — Check logs for successful API calls: `docker compose logs producer --tail=20`.
-3. **Spark** — Verify batch processing: `docker compose logs spark-stream --tail=50`, look for `batch_id` log lines with `good_rows > 0`.
-4. **dbt** — Verify models built: `make dbt-build`, check for success output.
-5. **Alerts** — Check Grafana → Alerting → Alert Rules, verify all rules are in "Normal" state.
-6. **Kafka** — (dev mode) Open `http://127.0.0.1:8080`, verify `commodity_prices` topic has messages.
+1. **Grafana** – Open `http://127.0.0.1:3000`, login with configured admin credentials, verify market_overview dashboard shows data.
+2. **Producer** – Check logs for successful API calls: `docker compose logs producer --tail=20`.
+3. **Spark** – Verify batch processing: `docker compose logs spark-stream --tail=50`, look for `batch_id` log lines with `good_rows > 0`.
+4. **dbt** – Verify models built: `make dbt-build`, check for success output.
+5. **Alerts** – Check Grafana → Alerting → Alert Rules, verify all rules are in "Normal" state.
+6. **Kafka** – (dev mode) Open `http://127.0.0.1:8080`, verify `commodity_prices` topic has messages.
 
 ### Volume Management
 
 | Volume | Data | Recreatable? |
 |--------|------|-------------|
-| pgdata | All database data | **NO** — back up before `make downv` |
+| pgdata | All database data | **NO** – back up before `make downv` |
 | kafka_data | Kafka logs/offsets | Yes (Spark replays from checkpoint) |
 | spark_checkpoints | Spark offset state | Partially (earliest offset restarts from beginning, latest skips backlog) |
 | spark_ivy_cache | Maven dependency cache | Yes (re-downloaded on start) |
 | grafana_data | Grafana state | Yes (provisioned from config files) |
-| ./backups | pg_dump archives | **NO** — stored on host filesystem |
+| ./backups | pg_dump archives | **NO** – stored on host filesystem |
 
 ---
 
@@ -613,4 +613,4 @@ The following issues were identified during development and have been resolved:
 
 The system demonstrates strong architectural foundations: idempotent data flow, role-based access control, checkpoint-based effectively-once semantics, commodity-aware analytics, and comprehensive alert coverage. The design choices are well-reasoned for the stated use case (3 instruments, 6-minute intervals, single-machine deployment).
 
-The P1 items (credentials, TLS) are standard for development environments and would be addressed before any production deployment. The system includes 65 dbt tests, 11 Grafana alert rules, CI pipelines (lint, test, security scanning), and automated operational services (backup, retention, lag monitoring) — providing a robust foundation that exceeds typical thesis requirements.
+The P1 items (credentials, TLS) are standard for development environments and would be addressed before any production deployment. The system includes 65 dbt tests, 11 Grafana alert rules, CI pipelines (lint, test, security scanning), and automated operational services (backup, retention, lag monitoring) – providing a robust foundation that exceeds typical thesis requirements.

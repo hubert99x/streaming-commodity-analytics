@@ -39,7 +39,7 @@ These controls reduce the attack surface and limit the impact of a compromised c
 
 ## Database Roles
 
-The database access model follows the principle of least privilege — each service is granted only the minimum permissions required for its role.
+The database access model follows the principle of least privilege – each service is granted only the minimum permissions required for its role.
 
 | Role | Schemas | Permissions |
 |------|---------|-------------|
@@ -53,7 +53,7 @@ The database access model follows the principle of least privilege — each serv
 
 `DEFAULT PRIVILEGES` auto-grants SELECT to `grafana_read` and `backup_user` on any new object dbt or Spark creates, so a new model is visible to dashboards and covered by backups without a manual grant.
 
-**One documented exception.** The `retention` container (ops profile) connects as the superuser rather than through one of the seven roles. `VACUUM` can only be executed by the owner of a table, and ownership cannot be delegated through a `GRANT`, so a dedicated role could run the `DELETE` half of the cycle but not the `VACUUM` half. Splitting it would mean two connections for one job with no security gain, since the container would still need owner rights. Everything else — Spark, dbt, Grafana, the producer, backups, the alert receiver and the lag monitor — uses a role scoped to the tables it touches.
+**One documented exception.** The `retention` container (ops profile) connects as the superuser rather than through one of the seven roles. `VACUUM` can only be executed by the owner of a table, and ownership cannot be delegated through a `GRANT`, so a dedicated role could run the `DELETE` half of the cycle but not the `VACUUM` half. Splitting it would mean two connections for one job with no security gain, since the container would still need owner rights. Everything else – Spark, dbt, Grafana, the producer, backups, the alert receiver and the lag monitor – uses a role scoped to the tables it touches.
 
 ## CI Security Scanning
 
