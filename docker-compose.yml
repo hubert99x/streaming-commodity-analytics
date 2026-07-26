@@ -236,7 +236,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          # 512M, not 256M: Grafana 13 keeps bleve full-text indexes in memory
+          # and ran at ~98% of a 256M limit, which restarted the container.
+          memory: 512M
           cpus: "0.5"
     security_opt:
       - no-new-privileges:true
