@@ -59,6 +59,8 @@ aggregated as (
 
 )
 
+-- No ORDER BY here: row order inside a table is not guaranteed, and every
+-- Grafana panel reading this model sorts for itself.
 select
     commodity,
     symbol,
@@ -73,4 +75,3 @@ select
 from aggregated
 -- Exclude current incomplete hour to avoid artificially low volatility
 where hour_bucket < date_trunc('hour', now())
-order by hour_bucket desc, symbol

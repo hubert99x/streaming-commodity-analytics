@@ -102,6 +102,8 @@ classified as (
 
 )
 
+-- No ORDER BY here: row order inside a table is not guaranteed, and every
+-- Grafana panel reading this model sorts for itself.
 select
     commodity,
     symbol,
@@ -114,4 +116,3 @@ select
     event_type
 from classified
 where event_type <> 'NORMAL'
-order by event_ts desc, symbol
