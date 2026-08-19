@@ -22,9 +22,9 @@ RUN apt-get update \
 # dbt-common >=1.37.5, so pinning them separately lets the resolver pick
 # incompatible transitive versions. Mirrored in .github/workflows/dbt-ci.yml.
 RUN pip install --no-cache-dir \
-      "dbt-core==1.12.0" \
+      "dbt-core==1.12.2" \
       "dbt-adapters==1.24.5" \
-      "dbt-common==1.38.0" \
+      "dbt-common==1.39.0" \
       "dbt-postgres==1.11.0"
 
 # deepdiff is installed separately with --upgrade so pip overrides
