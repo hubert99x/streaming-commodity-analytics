@@ -464,7 +464,11 @@ services:
       # DBT_DB_PASSWORD from env_file, so this container connects as dbt_runner
       # exactly like the scheduler does.
     entrypoint: ["/bin/sh", "-c"]
-    command: ["sleep infinity"]
+    # dbt packages install into /tmp/dbt_packages (see dbt_project.yml), which is
+    # empty in every freshly created container. Without this, `make dbt-build`
+    # fails on the missing dbt_utils macros after each down/up cycle. The helper
+    # container stays up even if the install fails, so `make dbt-deps` can retry.
+    command: ["dbt deps --no-use-colors || echo '[dbt] WARNING: dbt deps failed, run make dbt-deps before make dbt-build'; sleep infinity"]
     networks:
       - database
     deploy:
