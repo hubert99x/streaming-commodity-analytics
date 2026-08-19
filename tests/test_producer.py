@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from producer import producer
 from producer.producer import (
     active_symbols_for_fetch,
     clamp,
@@ -103,3 +104,37 @@ def test_fx_gate_closes_when_non_utc_time_crosses_the_boundary():
     """01:00 Saturday in UTC+2 is 23:00 Friday UTC, so the market is closed."""
     aware = datetime(2026, 3, 7, 1, 0, 0, tzinfo=timezone(timedelta(hours=2)))
     assert is_fx_weekend_closed(aware) is True
+
+# ---- Heartbeat for the container healthcheck ----
+
+@pytest.fixture
+def heartbeat(tmp_path, monkeypatch):
+    """Point the heartbeat at a temp file and make the 1s ticks instant."""
+    path = tmp_path / "producer_alive"
+    monkeypatch.setattr(producer, "HEARTBEAT_FILE", str(path))
+    monkeypatch.setattr(producer.time, "sleep", lambda _s: None)
+    return path
+
+
+def test_heartbeat_file_is_written_while_waiting(heartbeat):
+    producer._sleep_responsively(3)
+    assert heartbeat.exists()
+    assert heartbeat.read_text().endswith("Z")
+
+
+def test_heartbeat_is_refreshed_on_the_configured_cadence(heartbeat, monkeypatch):
+    writes = []
+    monkeypatch.setattr(producer, "_touch_heartbeat", lambda: writes.append(1))
+    producer._sleep_responsively(2 * producer.HEARTBEAT_EVERY_SEC)
+    assert len(writes) == 2
+
+
+def test_sleep_stops_early_once_the_stop_signal_arrives(heartbeat, monkeypatch):
+    monkeypatch.setattr(producer, "_running", False)
+    producer._sleep_responsively(600)
+    assert not heartbeat.exists()
+
+
+def test_heartbeat_failure_does_not_raise(monkeypatch, tmp_path):
+    monkeypatch.setattr(producer, "HEARTBEAT_FILE", str(tmp_path / "missing-dir" / "alive"))
+    producer._touch_heartbeat()

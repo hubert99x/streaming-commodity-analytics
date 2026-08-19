@@ -48,6 +48,11 @@ BACKOFF_MAX_SEC = int(os.getenv("BACKOFF_MAX_SEC", str(max(60, INTERVAL_SEC * 10
 
 TD_BASE = os.getenv("TD_BASE", "https://api.twelvedata.com")
 
+# Liveness marker for the container healthcheck. /tmp is a tmpfs mount, so this
+# stays writable even though the container runs with a read-only root filesystem.
+HEARTBEAT_FILE = "/tmp/producer_alive"
+HEARTBEAT_EVERY_SEC = 30
+
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "postgres")
 POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 POSTGRES_DB = os.getenv("POSTGRES_DB")
@@ -145,6 +150,31 @@ def utc_iso(now_utc: datetime) -> str:
 def clamp(n: int, lo: int, hi: int) -> int:
     """Constrain n to the range [lo, hi]."""
     return max(lo, min(hi, n))
+
+
+def _touch_heartbeat() -> None:
+    """Refresh the liveness marker read by the container healthcheck."""
+    try:
+        with open(HEARTBEAT_FILE, "w") as fh:
+            fh.write(utc_iso(datetime.now(timezone.utc)))
+    except OSError as e:
+        print(f"ERROR writing heartbeat: {e}", flush=True)
+
+
+def _sleep_responsively(seconds: int) -> None:
+    """
+    Sleep in 1-second ticks so SIGTERM/SIGINT are honoured immediately.
+
+    The heartbeat is refreshed while waiting, so the healthcheck tracks whether
+    the loop is alive rather than whether the API is currently answering. API
+    health has its own signal in monitoring.api_calls.
+    """
+    slept = 0
+    while _running and slept < seconds:
+        if slept % HEARTBEAT_EVERY_SEC == 0:
+            _touch_heartbeat()
+        time.sleep(1)
+        slept += 1
 
 
 def is_price_within_bounds(symbol: str, price: float) -> bool:
@@ -411,13 +441,14 @@ def main():
     backoff_sec = 0
     backoff_multiplier = 1
 
+    # Marks the container healthy as soon as the loop is reachable, without
+    # waiting for the first full polling cycle to finish.
+    _touch_heartbeat()
+
     while _running:
         if backoff_sec > 0:
             print(f"BACKOFF {backoff_sec}s", flush=True)
-            slept = 0
-            while _running and slept < backoff_sec:
-                time.sleep(1)
-                slept += 1
+            _sleep_responsively(backoff_sec)
             backoff_sec = 0
             if not _running:
                 break
@@ -432,10 +463,7 @@ def main():
                 f"SKIP CYCLE - no active symbols to fetch (now_utc={now_utc.isoformat()})",
                 flush=True,
             )
-            slept = 0
-            while _running and slept < INTERVAL_SEC:
-                time.sleep(1)
-                slept += 1
+            _sleep_responsively(INTERVAL_SEC)
             continue
 
         try:
@@ -548,11 +576,7 @@ def main():
             flush=True,
         )
 
-        # Sleep in 1-second ticks to allow responsive shutdown on SIGTERM/SIGINT
-        slept = 0
-        while _running and slept < INTERVAL_SEC:
-            time.sleep(1)
-            slept += 1
+        _sleep_responsively(INTERVAL_SEC)
 
     # Flush remaining messages before exit to avoid data loss. Already shutting
     # down here, so a failure has nowhere left to be handled.

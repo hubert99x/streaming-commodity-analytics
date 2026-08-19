@@ -176,6 +176,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 - **Pre-publish price bounds validation:** Checks prices against commodity-specific bounds (XAU: 500–15000, BTC: 100–1M, EUR: 0.5–2.0) before publishing to Kafka. Out-of-bounds prices are logged and skipped, preventing pipeline contamination at the source.
 - **API metrics:** Each API call is logged to `monitoring.api_calls` (status code, latency, error message) via a lazy Postgres connection.
 - **Graceful shutdown:** SIGINT/SIGTERM handlers flush the Kafka producer buffer before exit.
+- **Container healthcheck:** the loop refreshes `/tmp/producer_alive` every 30s, including while waiting out a backoff. It reports whether the loop is alive, not whether the API is answering — API availability has its own signal in `monitoring.api_calls`.
 
 **Weaknesses:**
 - **No circuit breaker.** Exponential backoff can reach 10+ minutes. There is no alert mechanism if the producer enters prolonged backoff – the system just goes quiet.

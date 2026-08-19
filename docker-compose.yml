@@ -426,6 +426,15 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    # The loop refreshes /tmp/producer_alive every 30s, including while it waits
+    # out a backoff. This tracks whether the producer is running, not whether the
+    # API is answering — API health has its own alerts on monitoring.api_calls.
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/producer_alive && find /tmp/producer_alive -mmin -2 | grep -q ."]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     cap_drop:
       - ALL
     deploy:
