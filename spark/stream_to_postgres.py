@@ -390,6 +390,10 @@ if __name__ == "__main__":
         SparkSession.builder
         .appName("kafka_to_postgres_raw_prices")
         .config("spark.sql.session.timeZone", "UTC")
+        # Spark 4 enables ANSI mode by default, which makes to_timestamp() raise
+        # on a malformed timestamp instead of returning NULL. The validation chain
+        # below depends on the NULL: that is what marks a row INVALID_FIELD:event_ts
+        # and routes it to the DLQ, rather than failing the whole micro-batch.
         .config("spark.sql.ansi.enabled", "false")
         .getOrCreate()
     )
