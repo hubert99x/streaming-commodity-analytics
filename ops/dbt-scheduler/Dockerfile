@@ -32,10 +32,16 @@ RUN pip install --no-cache-dir \
 # DeepDiff() constructor with ignore_order/verbose_level — the 9.x
 # API is fully compatible with these calls (verified with dbt build
 # PASS=69 on the 9.0 bump; 9.1 keeps the same constructor API).
+# sqlparse 0.6.0 overrides dbt-core's sqlparse<0.6.0 pin the same way. It fixes
+# three DoS advisories (CVE-2026-54284, CVE-2026-59893, CVE-2026-71491) that
+# 0.5.5 carries. dbt-core's pin predates the release rather than marking a known
+# incompatibility, so dbt-ci is what proves the combination works: it runs a
+# full-refresh build, an incremental build and the data tests on every push.
 # setuptools/wheel/urllib3/jaraco.context are upgraded to clear known CVEs in
 # the transitive deps pulled by dbt-postgres.
 RUN pip install --no-cache-dir --upgrade \
       "deepdiff==9.1.0" \
+      "sqlparse==0.6.0" \
       setuptools wheel urllib3 "jaraco.context"
 
 RUN groupadd -r -g 1000 dbtuser \
