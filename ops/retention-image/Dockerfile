@@ -1,5 +1,5 @@
 # Stage 1: build patched gosu with a newer Go toolchain
-FROM golang:1.26.5-bookworm AS gosu-builder
+FROM golang:1.26.6-bookworm AS gosu-builder
 
 WORKDIR /src
 
@@ -13,7 +13,7 @@ RUN git clone https://github.com/tianon/gosu.git . \
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/gosu .
 
 # Stage 2: final retention image
-FROM postgres:16.14
+FROM postgres:16.15
 
 RUN apt-get update \
  && apt-get upgrade -y \

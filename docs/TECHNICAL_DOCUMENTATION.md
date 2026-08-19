@@ -28,7 +28,7 @@ The system is a single-machine, Docker Compose-based streaming analytics pipelin
 ```
 ┌──────────────┐     ┌─────────────┐     ┌──────────────────┐     ┌──────────────┐
 │  Twelve Data │     │    Kafka    │     │  Spark Structured│     │  PostgreSQL  │
-│   REST API   │────▶│  (KRaft)   │────▶│    Streaming     │────▶│   16.14      │
+│   REST API   │────▶│  (KRaft)   │────▶│    Streaming     │────▶│   16.15      │
 │              │     │ 3 partitions│     │                  │     │              │
 └──────────────┘     └─────────────┘     └──────────────────┘     └──────┬───────┘
        ▲                                                                  │
@@ -48,20 +48,20 @@ The system is a single-machine, Docker Compose-based streaming analytics pipelin
 
 | Service | Image | Profile | Resource Limits |
 |---------|-------|---------|-----------------|
-| postgres | postgres:16.14 | always | 512MB / 1.0 CPU |
-| kafka | confluentinc/cp-kafka:8.3.0 (KRaft) | always | 1GB / 1.0 CPU |
+| postgres | postgres:16.15 | always | 512MB / 1.0 CPU |
+| kafka | confluentinc/cp-kafka:8.3.1 (KRaft) | always | 1GB / 1.0 CPU |
 | spark-stream | apache/spark:4.1.3 | always | 1GB / 1.5 CPU |
 | spark (debug) | apache/spark:4.1.3 | dev | 1GB / 1.0 CPU |
 | producer | python:3.14-slim (custom) | always | 128MB / 0.25 CPU |
 | dbt-scheduler | python:3.14-slim (custom, dbt-postgres 1.11.0) | always | 256MB / 0.5 CPU |
 | dbt (manual) | python:3.14-slim (custom, dbt-postgres 1.11.0) | always | 256MB / 0.5 CPU |
-| grafana | grafana/grafana:13.1.1 | always | 256MB / 0.5 CPU |
+| grafana | grafana/grafana:13.1.3 | always | 512MB / 0.5 CPU |
 | alert-receiver | python:3.14-slim (custom) | always | 128MB / 0.25 CPU |
-| pgadmin | dpage/pgadmin4:9.16 | dev | 256MB / 0.5 CPU |
+| pgadmin | dpage/pgadmin4:9.17 | dev | 256MB / 0.5 CPU |
 | kafka-ui | kafbat/kafka-ui:v1.5.0 | dev | 256MB / 0.5 CPU |
 | kafka-lag | python:3.14-slim (custom) | ops | 128MB / 0.25 CPU |
-| retention | postgres:16.14 (custom) | ops | 128MB / 0.25 CPU |
-| backup-cron | postgres:16.14 | ops | 256MB / 0.5 CPU |
+| retention | postgres:16.15 (custom) | ops | 128MB / 0.25 CPU |
+| backup-cron | postgres:16.15 | ops | 256MB / 0.5 CPU |
 
 ### Network Topology
 

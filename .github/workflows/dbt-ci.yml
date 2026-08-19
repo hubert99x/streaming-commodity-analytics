@@ -11,7 +11,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16.14
+        image: postgres:16.15
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -40,9 +40,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install \
-            "dbt-core==1.12.0" \
+            "dbt-core==1.12.2" \
             "dbt-adapters==1.24.5" \
-            "dbt-common==1.38.0" \
+            "dbt-common==1.39.0" \
             "dbt-postgres==1.11.0"
           # Mirror the override from ops/dbt-scheduler/Dockerfile so CI resolves the
           # same tree as the shipped image, deepdiff included.

@@ -6,7 +6,7 @@ services:
   # PostgreSQL
   # =========================
   postgres:
-    image: postgres:16.14
+    image: postgres:16.15
     environment:
       POSTGRES_USER: ${POSTGRES_USER?err}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD?err}
@@ -69,7 +69,7 @@ services:
   # pgAdmin (DEV only)
   # =========================
   pgadmin:
-    image: dpage/pgadmin4:9.16
+    image: dpage/pgadmin4:9.17
     profiles: ["dev"]
     depends_on:
       postgres:
@@ -97,7 +97,7 @@ services:
   # Kafka (KRaft mode – no Zookeeper)
   # =========================
   kafka:
-    image: confluentinc/cp-kafka:8.3.0
+    image: confluentinc/cp-kafka:8.3.1
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: "broker,controller"
@@ -204,7 +204,7 @@ services:
   # Grafana (localhost only)
   # =========================
   grafana:
-    image: grafana/grafana:13.1.1
+    image: grafana/grafana:13.1.3
     depends_on:
       postgres:
         condition: service_healthy
@@ -555,7 +555,7 @@ services:
   # =========================
   backup-cron:
     profiles: ["ops"]
-    image: postgres:16.14
+    image: postgres:16.15
     depends_on:
       postgres:
         condition: service_healthy
