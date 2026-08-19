@@ -50,3 +50,48 @@ def test_stale_processed_offset_below_log_start_is_ignored():
 @pytest.mark.parametrize("last_processed", [None, 0, 50, 99, 500])
 def test_lag_is_never_negative(last_processed):
     assert partition_lag(high=100, low=0, last_processed=last_processed) >= 0
+
+
+# ---- Shared Kafka clients ----
+
+class _FakeConsumer:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+def test_close_clients_releases_the_consumer_and_clears_both():
+    consumer = _FakeConsumer()
+    kafka_lag._admin = object()
+    kafka_lag._consumer = consumer
+
+    kafka_lag.close_clients()
+
+    assert consumer.closed is True
+    assert kafka_lag._admin is None
+    assert kafka_lag._consumer is None
+
+
+def test_close_clients_is_safe_when_nothing_was_built():
+    kafka_lag._admin = None
+    kafka_lag._consumer = None
+
+    kafka_lag.close_clients()
+
+    assert kafka_lag._admin is None
+    assert kafka_lag._consumer is None
+
+
+def test_close_clients_survives_a_failing_close():
+    class _Broken:
+        def close(self):
+            raise RuntimeError("broker gone")
+
+    kafka_lag._admin = object()
+    kafka_lag._consumer = _Broken()
+
+    kafka_lag.close_clients()
+
+    assert kafka_lag._consumer is None

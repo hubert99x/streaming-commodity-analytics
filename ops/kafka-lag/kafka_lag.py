@@ -8,6 +8,7 @@ offsets, not consumer group commits). Logs lag to monitoring.kafka_lag.
 
 import contextlib
 import os
+import signal
 import time
 
 import psycopg2
@@ -25,6 +26,13 @@ POSTGRES_USER = os.getenv("POSTGRES_USER")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
 
 POLL_INTERVAL = int(os.getenv("KAFKA_LAG_POLL_SEC", "60"))
+
+_running = True
+
+# Kafka clients are built once and reused across polls. Rebuilding them every
+# minute meant a fresh connection and a metadata fetch on every measurement.
+_admin = None
+_consumer = None
 
 
 def get_connection():
@@ -85,38 +93,64 @@ def partition_lag(high: int, low: int, last_processed) -> int:
     return max(0, high - next_expected)
 
 
+def get_clients():
+    """Return the shared (admin, consumer) pair, creating it on first use."""
+    global _admin, _consumer
+    if _admin is None:
+        _admin = AdminClient({"bootstrap.servers": KAFKA_BOOTSTRAP})
+    if _consumer is None:
+        # Never subscribes and never commits: it exists only to read broker
+        # watermark offsets, so it stays outside the consumer group protocol.
+        _consumer = Consumer({"bootstrap.servers": KAFKA_BOOTSTRAP, "group.id": "__kafka_lag_inspector__"})
+    return _admin, _consumer
+
+
+def close_clients():
+    """Drop the shared clients so the next poll rebuilds them."""
+    global _admin, _consumer
+    if _consumer is not None:
+        # Already tearing the client down, a close failure changes nothing.
+        with contextlib.suppress(Exception):
+            _consumer.close()
+    _admin = None
+    _consumer = None
+
+
 def get_lag():
     """Calculate total and max-partition lag by comparing broker watermarks to processed offsets."""
-    admin = AdminClient({"bootstrap.servers": KAFKA_BOOTSTRAP})
+    admin, consumer = get_clients()
     cluster_md = admin.list_topics(timeout=10)
     partition_ids = list(cluster_md.topics[KAFKA_TOPIC].partitions.keys())
 
     processed = get_processed_offsets()
 
-    # Temporary consumer — used only to query broker watermark offsets, not for consuming
-    consumer = Consumer({"bootstrap.servers": KAFKA_BOOTSTRAP, "group.id": "__kafka_lag_inspector__"})
-
     total_lag = 0
     max_lag = 0
 
-    try:
-        for p in partition_ids:
-            # low = oldest offset still retained, high = next offset to be assigned
-            low, high = consumer.get_watermark_offsets(TopicPartition(KAFKA_TOPIC, p), timeout=5)
-            lag = partition_lag(high, low, processed.get(p))
-            total_lag += lag
-            max_lag = max(max_lag, lag)
-    finally:
-        consumer.close()
+    for p in partition_ids:
+        # low = oldest offset still retained, high = next offset to be assigned
+        low, high = consumer.get_watermark_offsets(TopicPartition(KAFKA_TOPIC, p), timeout=5)
+        lag = partition_lag(high, low, processed.get(p))
+        total_lag += lag
+        max_lag = max(max_lag, lag)
 
     return total_lag, max_lag
 
 
+def _handle_stop(signum, _frame):
+    global _running
+    _running = False
+    print(f"[kafka-lag] received signal {signum}, stopping...")
+
+
 def main():
     """Poll Kafka lag at regular intervals and log to Postgres."""
+    signal.signal(signal.SIGTERM, _handle_stop)
+    signal.signal(signal.SIGINT, _handle_stop)
+
     print(f"[kafka-lag] bootstrap={KAFKA_BOOTSTRAP} topic={KAFKA_TOPIC} group={CONSUMER_GROUP}")
 
-    while True:
+    while _running:
         try:
             total_lag, max_lag = get_lag()
             write_lag(total_lag, max_lag)
@@ -125,8 +159,17 @@ def main():
         # monitor, otherwise lag stops being recorded exactly when it matters.
         except Exception as e:  # noqa: BLE001
             print(f"[kafka-lag] error: {e}")
+            # The shared clients may be the broken part, so rebuild them next poll.
+            close_clients()
 
-        time.sleep(POLL_INTERVAL)
+        # Sleep in 1-second ticks so SIGTERM does not wait out the whole interval
+        slept = 0
+        while _running and slept < POLL_INTERVAL:
+            time.sleep(1)
+            slept += 1
+
+    close_clients()
+    print("[kafka-lag] stopped.")
 
 
 if __name__ == "__main__":
