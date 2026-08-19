@@ -9,6 +9,7 @@ import signal
 import sys
 import time
 
+import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col,
@@ -26,10 +27,7 @@ from pyspark.sql.types import (
     StructField,
     StructType,
 )
-import pyspark.sql.functions as F
-
 from validation import PRICE_BOUNDS, SUPPORTED_SCHEMA_VERSION
-
 
 # =========================
 # Env config
@@ -137,7 +135,7 @@ def _close_quietly(*resources) -> None:
         if res is not None:
             try:
                 res.close()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110 (see the docstring)
                 pass
 
 
@@ -249,7 +247,9 @@ def _staging_cycle(spark, jdbc_props, batch_df, *, staging_table, merge_sql, loc
                 try:
                     lock_stmt.execute(f"SELECT pg_advisory_unlock({lock_key})")
                     break
-                except Exception as e:
+                # Broad on purpose: the comment above explains why a failed
+                # unlock is survivable, so every error kind gets a retry.
+                except Exception as e:  # noqa: BLE001
                     if attempt == 2:
                         print(
                             f"[spark-stream] WARNING: pg_advisory_unlock({lock_key}) failed after 3 attempts: {e}",
@@ -347,7 +347,9 @@ def make_foreach_batch(spark: SparkSession):
                     """,
                     lock_key=2,
                 )
-            except Exception as e:
+            # Broad on purpose: DLQ writes are best-effort, a failure here must
+            # never stop the main stream (see the module docstring).
+            except Exception as e:  # noqa: BLE001
                 dlq_write_failed = bad_rows
                 print(
                     f"[spark-stream] DLQ_WRITE_FAILURE batch_id={batch_id} lost_records={bad_rows} err={e}",

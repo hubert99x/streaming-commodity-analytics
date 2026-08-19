@@ -64,6 +64,7 @@ def _run_dbt_build():
             cwd="/dbt",
             capture_output=False,
             timeout=300,
+            check=False,
         )
         duration_ms = int((time.monotonic() - t0) * 1000)
         _last_build_ok = result.returncode == 0
@@ -80,7 +81,9 @@ def _run_dbt_build():
         print(f"[dbt-scheduler] {_now_iso()} dbt build TIMEOUT (300s) duration_ms={duration_ms}", flush=True)
         _last_build_ok = False
         return False
-    except Exception as e:
+    # Broad on purpose: a failed task is logged and retried on the next tick,
+    # it must never take the scheduler loop down with it.
+    except Exception as e:  # noqa: BLE001
         duration_ms = int((time.monotonic() - t0) * 1000)
         print(f"[dbt-scheduler] {_now_iso()} dbt build ERROR: {e} duration_ms={duration_ms}", flush=True)
         _last_build_ok = False
@@ -102,6 +105,7 @@ def _run_dbt_test_and_log():
             cwd="/dbt",
             capture_output=False,
             timeout=300,
+            check=False,
         )
         if result.returncode != 0:
             print(
@@ -112,7 +116,7 @@ def _run_dbt_test_and_log():
             print(f"[dbt-scheduler] {_now_iso()} dbt test log OK", flush=True)
     except subprocess.TimeoutExpired:
         print(f"[dbt-scheduler] {_now_iso()} dbt test TIMEOUT (300s)", flush=True)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 (see _run_dbt_build)
         print(f"[dbt-scheduler] {_now_iso()} dbt test ERROR: {e}", flush=True)
     finally:
         _lock.release()
@@ -145,6 +149,7 @@ def _run_retention():
             text=True,
             timeout=120,
             env={**os.environ, "PGPASSWORD": POSTGRES_PASSWORD},
+            check=False,
         )
         if result.returncode == 0:
             print(f"[dbt-scheduler] {_now_iso()} retention cleanup OK", flush=True)
@@ -155,7 +160,7 @@ def _run_retention():
             )
     except subprocess.TimeoutExpired:
         print(f"[dbt-scheduler] {_now_iso()} retention cleanup TIMEOUT", flush=True)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 (see _run_dbt_build)
         print(f"[dbt-scheduler] {_now_iso()} retention cleanup ERROR: {e}", flush=True)
     finally:
         _lock.release()

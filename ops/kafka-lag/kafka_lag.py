@@ -9,6 +9,7 @@ offsets, not consumer group commits). Logs lag to monitoring.kafka_lag.
 import contextlib
 import os
 import time
+
 import psycopg2
 from confluent_kafka import Consumer, TopicPartition
 from confluent_kafka.admin import AdminClient
@@ -41,17 +42,15 @@ def write_lag(total_lag, max_lag):
     """Insert a lag measurement into monitoring.kafka_lag."""
     # closing() around the connection: `with conn` only ends the transaction,
     # so a failing query would otherwise leave the socket open on every poll.
-    with contextlib.closing(get_connection()) as conn:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO monitoring.kafka_lag
-                    (group_id, topic, ts_utc, total_lag, max_partition_lag)
-                    VALUES (%s,%s,now(),%s,%s)
-                    """,
-                    (CONSUMER_GROUP, KAFKA_TOPIC, total_lag, max_lag)
-                )
+    with contextlib.closing(get_connection()) as conn, conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO monitoring.kafka_lag
+            (group_id, topic, ts_utc, total_lag, max_partition_lag)
+            VALUES (%s,%s,now(),%s,%s)
+            """,
+            (CONSUMER_GROUP, KAFKA_TOPIC, total_lag, max_lag)
+        )
 
 
 def get_processed_offsets():
@@ -60,17 +59,15 @@ def get_processed_offsets():
     Queries the target table instead of Kafka consumer groups because
     Spark uses checkpoint-based offsets, not consumer group commits.
     """
-    with contextlib.closing(get_connection()) as conn:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT kafka_partition, MAX(kafka_offset)
-                    FROM public.raw_prices
-                    GROUP BY kafka_partition
-                    """
-                )
-                return {row[0]: row[1] for row in cur.fetchall()}
+    with contextlib.closing(get_connection()) as conn, conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT kafka_partition, MAX(kafka_offset)
+            FROM public.raw_prices
+            GROUP BY kafka_partition
+            """
+        )
+        return {row[0]: row[1] for row in cur.fetchall()}
 
 
 def partition_lag(high: int, low: int, last_processed) -> int:
@@ -108,8 +105,7 @@ def get_lag():
             low, high = consumer.get_watermark_offsets(TopicPartition(KAFKA_TOPIC, p), timeout=5)
             lag = partition_lag(high, low, processed.get(p))
             total_lag += lag
-            if lag > max_lag:
-                max_lag = lag
+            max_lag = max(max_lag, lag)
     finally:
         consumer.close()
 
@@ -125,7 +121,9 @@ def main():
             total_lag, max_lag = get_lag()
             write_lag(total_lag, max_lag)
             print(f"[kafka-lag] total_lag={total_lag} max_partition_lag={max_lag}")
-        except Exception as e:
+        # Broad on purpose: a broker hiccup or a failed insert must not kill the
+        # monitor, otherwise lag stops being recorded exactly when it matters.
+        except Exception as e:  # noqa: BLE001
             print(f"[kafka-lag] error: {e}")
 
         time.sleep(POLL_INTERVAL)

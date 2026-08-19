@@ -34,7 +34,9 @@ def _call(symbols, status=200, body=None, get_side_effect=None):
          patch.object(producer.requests, "get", side_effect=get):
         try:
             prices = td_prices(symbols)
-        except Exception as exc:
+        # Broad on purpose: the helper returns whatever td_prices raises so the
+        # tests below can assert on the error type themselves.
+        except Exception as exc:  # noqa: BLE001
             prices = exc
     return prices, logged
 

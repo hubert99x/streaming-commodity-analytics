@@ -17,14 +17,13 @@ import signal
 import sys
 import time
 import uuid
-from datetime import datetime, timezone, time as dtime
-from typing import Dict, List
+from datetime import datetime, timezone
+from datetime import time as dtime
 
-import requests
 import psycopg2
+import requests
 from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
-
 
 # ==========================================================
 # Config (env-first, safe defaults)
@@ -66,7 +65,7 @@ FX_WEEKEND_GATED_SYMBOLS = {"EUR/USD", "XAU/USD"}
 
 # Per-symbol sanity bounds — reject absurd API values before they reach Kafka.
 # Same thresholds as Spark validation (spark/validation.py) for defense-in-depth.
-PRICE_BOUNDS: Dict[str, tuple] = {
+PRICE_BOUNDS: dict[str, tuple] = {
     "XAU/USD": (500.0, 15_000.0),
     "BTC/USD": (100.0, 1_000_000.0),
     "EUR/USD": (0.5, 2.0),
@@ -98,9 +97,11 @@ def _close_pg_conn():
     """Drop the cached connection, closing the socket first."""
     global _pg_conn
     if _pg_conn is not None:
+        # Nothing to do if the socket is already gone: the point of this call is
+        # only to drop the reference, so a close failure is not worth reporting.
         try:
             _pg_conn.close()
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
         _pg_conn = None
 
@@ -121,7 +122,8 @@ def log_api_call(symbols: str, http_status, latency_ms: int, ok: bool, error_typ
                 """,
                 (symbols, http_status, latency_ms, ok, error_type, error_msg),
             )
-    except Exception as e:
+    # Broad on purpose: see the docstring, metrics logging must never break the loop.
+    except Exception as e:  # noqa: BLE001
         # Close before dropping the reference, otherwise every DB hiccup leaks a socket
         _close_pg_conn()
         print(f"ERROR logging API metrics: {e}", flush=True)
@@ -208,10 +210,7 @@ def is_fx_weekend_closed(now_utc: datetime) -> bool:
         return True
 
     # Sunday < 22:00:00 -> closed, open from 22:00:00
-    if dow == 6 and t < dtime(22, 0, 0):
-        return True
-
-    return False
+    return dow == 6 and t < dtime(22, 0, 0)
 
 
 def should_publish(symbol: str, now_utc: datetime) -> bool:
@@ -225,12 +224,12 @@ def should_publish(symbol: str, now_utc: datetime) -> bool:
     return True
 
 
-def active_symbols_for_fetch(now_utc: datetime) -> List[str]:
+def active_symbols_for_fetch(now_utc: datetime) -> list[str]:
     """
     Build the list of symbols to fetch from the API for the current cycle.
     If FX weekend gate is active, skip fetching gated FX symbols to save API calls.
     """
-    out: List[str] = []
+    out: list[str] = []
     for m in SYMBOLS:
         sym = m["symbol"]
         if should_publish(sym, now_utc):
@@ -238,7 +237,7 @@ def active_symbols_for_fetch(now_utc: datetime) -> List[str]:
     return out
 
 
-def td_prices(symbols: List[str]) -> Dict[str, float]:
+def td_prices(symbols: list[str]) -> dict[str, float]:
     """Fetch current prices from Twelve Data API. Returns {symbol: price} dict."""
     if not symbols:
         return {}
@@ -286,7 +285,7 @@ def td_prices(symbols: List[str]) -> Dict[str, float]:
             log_api_call(",".join(symbols), None, latency_ms, False, "EXCEPTION", str(e))
         raise
 
-    out: Dict[str, float] = {}
+    out: dict[str, float] = {}
 
     def _price(raw, symbol: str):
         """Convert an API price to float, skipping the symbol on bad values."""
@@ -362,7 +361,7 @@ def _ensure_topic(topic: str, num_partitions: int) -> None:
 
 def main():
     """Main producer loop: fetch prices → validate → publish to Kafka, with exponential backoff on errors."""
-    global _running
+    # _running is only read here; the signal handlers own the writes.
 
     if not TD_API_KEY:
         raise SystemExit("Missing TD_API_KEY in environment (.env)")
@@ -455,7 +454,8 @@ def main():
             print(f"API {s}. Backing off for {backoff_sec}s.", flush=True)
             continue
 
-        except Exception as e:
+        # Broad on purpose: any fetch failure becomes a backoff, never a crash.
+        except Exception as e:  # noqa: BLE001
             backoff_sec, backoff_multiplier = next_backoff("EXCEPTION", backoff_multiplier)
             print(f"ERROR batch request: {e}. Backing off for {backoff_sec}s.", flush=True)
             continue
@@ -526,10 +526,11 @@ def main():
                     producer.poll(0)
                     sent += 1
                     print(f"SENT {TOPIC}: {event}", flush=True)
-                except Exception as e:
+                # Broad on purpose: one bad instrument must not skip the others.
+                except Exception as e:  # noqa: BLE001
                     print(f"ERROR produce retry for {commodity} ({symbol}): {e}", flush=True)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 (as above)
                 print(f"ERROR produce for {commodity} ({symbol}): {e}", flush=True)
 
         undelivered = 0
@@ -538,7 +539,7 @@ def main():
             undelivered = producer.flush(10)
             if undelivered:
                 print(f"WARNING: {undelivered} message(s) still undelivered after flush", flush=True)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 (a failed flush is reported, then the loop continues)
             print(f"ERROR flush: {e}", flush=True)
 
         print(
@@ -553,12 +554,13 @@ def main():
             time.sleep(1)
             slept += 1
 
-    # Flush remaining messages before exit to avoid data loss
+    # Flush remaining messages before exit to avoid data loss. Already shutting
+    # down here, so a failure has nowhere left to be handled.
     try:
         remaining = producer.flush(10)
         if remaining:
             print(f"WARNING: exiting with {remaining} undelivered message(s)", flush=True)
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
 
     _close_pg_conn()

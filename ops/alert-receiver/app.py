@@ -13,7 +13,7 @@ import sys
 from datetime import datetime, timezone
 
 import psycopg2
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 PGHOST = os.getenv("POSTGRES_HOST", "postgres")
@@ -93,8 +93,9 @@ def grafana_webhook():
     try:
         payload = request.get_json(force=True, silent=False)
         if not isinstance(payload, dict):
-            raise ValueError("Payload is not a JSON object")
-    except Exception as e:
+            raise TypeError("Payload is not a JSON object")
+    # Broad on purpose: any malformed body must become a 400, never a 500.
+    except Exception as e:  # noqa: BLE001
         return jsonify({"error": f"invalid_json: {e}"}), 400
 
     # These fields vary by Grafana version / config, extract best-effort
@@ -125,18 +126,18 @@ def grafana_webhook():
     # A DB failure returns 500 rather than raising, so Grafana retries the
     # delivery instead of dropping the alert.
     try:
-        with contextlib.closing(_connect()) as conn:
-            with conn:
-                with conn.cursor() as cur:
-                    cur.executemany(
-                        """
-                        INSERT INTO monitoring.alert_events
-                        (source, severity, alert_uid, alert_title, state, dashboard_uid, panel_id, org_id, raw_payload)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
-                        """,
-                        rows,
-                    )
-    except Exception as e:
+        with contextlib.closing(_connect()) as conn, conn, conn.cursor() as cur:
+            cur.executemany(
+                """
+                INSERT INTO monitoring.alert_events
+                (source, severity, alert_uid, alert_title, state, dashboard_uid, panel_id, org_id, raw_payload)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+                """,
+                rows,
+            )
+    # Broad on purpose: see the comment above, every DB error has to surface as
+    # a 500 so Grafana retries instead of dropping the alert.
+    except Exception as e:  # noqa: BLE001
         return jsonify({"error": f"db_insert_failed: {e}"}), 500
 
     return jsonify({"ok": True, "stored": len(rows)}), 200

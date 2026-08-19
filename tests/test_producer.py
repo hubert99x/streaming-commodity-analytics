@@ -88,7 +88,8 @@ def test_fx_gate_boundary_instants(dt, closed):
 
 
 def test_fx_gate_treats_naive_datetime_as_utc():
-    naive = datetime(2026, 3, 7, 12, 0, 0)
+    # The missing tzinfo is the point of this test, so DTZ001 does not apply.
+    naive = datetime(2026, 3, 7, 12, 0, 0)  # noqa: DTZ001
     assert is_fx_weekend_closed(naive) is True
 
 
