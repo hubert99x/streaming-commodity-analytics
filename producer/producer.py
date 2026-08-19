@@ -407,6 +407,10 @@ def main():
         flush=True,
     )
 
+    # Written before waiting on Kafka: the process is alive during that wait, so
+    # a slow broker start must not read as an unhealthy producer.
+    _touch_heartbeat()
+
     # Ensure topic exists with correct partition count. Kafka may still be
     # starting when the producer boots, so retry instead of exiting: every other
     # failure in this loop backs off rather than killing the container.
@@ -440,10 +444,6 @@ def main():
     # resets to 1 on success. backoff_sec is the pause before next attempt.
     backoff_sec = 0
     backoff_multiplier = 1
-
-    # Marks the container healthy as soon as the loop is reachable, without
-    # waiting for the first full polling cycle to finish.
-    _touch_heartbeat()
 
     while _running:
         if backoff_sec > 0:
