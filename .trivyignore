@@ -1,8 +1,8 @@
 # =============================================================================
-# Trivy CVE ignore list — currently empty.
+# Trivy CVE ignore list.
 #
-# All previously suppressed CVEs (jaraco.context, wheel, setuptools, urllib3,
-# protobuf) were resolved on 2026-04-16 by:
+# All CVEs suppressed before 2026-04-16 (jaraco.context, wheel, setuptools,
+# urllib3, protobuf) were resolved on that date by:
 #   - Rebuilding dbt-scheduler on a plain python-slim base (Debian trixie) to
 #     replace the Debian 11 bullseye base from dbt-labs/dbt-postgres:1.9.0.
 #   - Adding `pip install --upgrade setuptools wheel urllib3 jaraco.context`
@@ -13,3 +13,25 @@
 # Add new entries below only when a CVE cannot be patched at build time,
 # and include: package, brief justification, date added, expected review date.
 # =============================================================================
+
+# -----------------------------------------------------------------------------
+# pip's vendored dependencies (msgpack, setuptools)
+# Added: 2026-08-20
+# Expires: 2026-11-20
+#
+# Both findings come from pip's own `_vendor` directory, not from anything this
+# project installs. pip 26.2.1 (the current release, shipped in python:3.14-slim)
+# pins msgpack==1.1.2 and setuptools==70.3.0 in src/pip/_vendor/vendor.txt, and
+# Trivy reports those pins. The images themselves ship setuptools 84.0.0 and no
+# msgpack at all, which the scan output confirms per METADATA file.
+#
+# Not patchable at build time: `pip install --upgrade` cannot reach a vendored
+# copy, and 26.2.1 is the newest release. Neither copy is importable by
+# application code and pip is never invoked at runtime.
+#
+# msgpack: already re-vendored to 1.2.1 on pip's main branch, so this entry
+# clears itself with the next pip release. setuptools: still 70.3.0 upstream.
+# At review time, check the vendor.txt of the current pip release first.
+# -----------------------------------------------------------------------------
+GHSA-6v7p-g79w-8964
+CVE-2025-47273
