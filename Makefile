@@ -51,8 +51,12 @@ down:
 downv:
 	$(COMPOSE) --profile dev --profile ops down -v --remove-orphans
 
+# Rebuild every image from scratch. Without --profile ops, compose skips
+# kafka-lag and retention, so a "rebuild" left those two on stale layers, which
+# is how an already-fixed CVE kept showing up in scans. dev is listed for
+# symmetry with down/downv and covers any dev service that gains a build later.
 rebuild:
-	$(COMPOSE) build --no-cache
+	$(COMPOSE) --profile dev --profile ops build --no-cache
 
 # -------------------------
 # Backups (manual + daemon)
