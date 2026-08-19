@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 
 import psycopg2
 from flask import Flask, jsonify, request
+from waitress import serve
 
 app = Flask(__name__)
 PGHOST = os.getenv("POSTGRES_HOST", "postgres")
@@ -144,4 +145,8 @@ def grafana_webhook():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    # waitress, not app.run(): Flask's built-in server is development tooling and
+    # says so itself on startup. waitress is a pure-Python WSGI server, so it adds
+    # no system packages and works under the container's read-only root filesystem.
+    # Grafana delivers alerts one webhook at a time, so a small thread pool is enough.
+    serve(app, host="0.0.0.0", port=5000, threads=4)

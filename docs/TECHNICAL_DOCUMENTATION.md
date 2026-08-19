@@ -228,6 +228,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 **Role:** Flask webhook listener that receives Grafana alert notifications and stores them in Postgres.
 
 **Key behaviors:**
+- Served by waitress (pure-Python WSGI server), not Flask's development server.
 - `POST /grafana` accepts Grafana alert JSON.
 - Flexible field extraction handles Grafana API version differences.
 - **Mandatory `X-Webhook-Token` header validation.** The service refuses to start without `ALERT_WEBHOOK_TOKEN` set, unless explicitly opted out with `ALERT_WEBHOOK_AUTH_DISABLED=true`.
