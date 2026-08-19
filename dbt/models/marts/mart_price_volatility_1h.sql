@@ -12,7 +12,7 @@
 --
 -- range_pct = (high - low) / avg * 100 — a normalized measure of price spread
 -- that allows comparing volatility across instruments with different price levels
--- (e.g. BTC at $70k vs EUR/USD at $1.08).
+-- (BTC trades in the thousands, EUR/USD close to parity).
 --
 -- Excludes the current incomplete hour to avoid artificially low volatility readings.
 -- Incremental: recomputes the last 2 completed hours to handle late-arriving data.

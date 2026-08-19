@@ -15,11 +15,13 @@ from __future__ import annotations
 
 # Per-commodity price bounds: (min_inclusive, max_inclusive)
 # These values are intentionally wide to reject only clearly erroneous prices
-# (e.g. API glitches returning 0 or astronomically high values).
+# (e.g. API glitches returning 0 or astronomically high values). They are not
+# tied to any particular market level, so ordinary price drift never requires
+# revising them; only a genuinely broken feed can fall outside these ranges.
 PRICE_BOUNDS: dict[str, tuple[float, float]] = {
-    "XAU/USD": (500.0, 15_000.0),      # Gold: ~$2000/oz typical (2024-2026)
-    "BTC/USD": (100.0, 1_000_000.0),    # Bitcoin: ~$70k typical (2024-2026)
-    "EUR/USD": (0.5, 2.0),              # EUR/USD: ~1.08 typical (2024-2026)
+    "XAU/USD": (500.0, 15_000.0),
+    "BTC/USD": (100.0, 1_000_000.0),
+    "EUR/USD": (0.5, 2.0),
 }
 
 # Only schema_version=1 is accepted; future versions would need migration logic
