@@ -214,7 +214,7 @@ The pipeline achieves **effectively-once** semantics through layered idempotency
 **Key behaviors:**
 - Python-based scheduler. A single loop invokes build, test and retention sequentially, so the three never overlap. A `threading.Lock()` guards each task as well, which never blocks today but keeps a future timer or thread from starting a second dbt invocation against the same warehouse.
 - Health heartbeat: writes timestamp to `/tmp/dbt_scheduler_alive`, checked by Docker health probe with 10-minute tolerance.
-- `dbt test` results parsed from `target/run_results.json` via `jq` and inserted into `monitoring.dbt_test_runs`.
+- `dbt test` results parsed from `run_results.json` via `jq` and inserted into `monitoring.dbt_test_runs`. The file lives under `DBT_TARGET_PATH`, which compose sets to `/tmp/dbt_target`.
 - 300-second timeout on subprocess execution.
 - **Automated retention:** Deletes records older than 90 days from all data and monitoring tables every 24 hours (configurable via `RETENTION_INTERVAL_SEC`). Runs in parallel with the standalone retention daemon (ops profile); both are idempotent.
 - **Non-root execution:** Runs as UID 1000 (`USER 1000` in Dockerfile). Container hardened with `cap_drop: ALL`.
