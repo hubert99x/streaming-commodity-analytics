@@ -45,7 +45,7 @@ The database access model follows the principle of least privilege – each serv
 |------|---------|-------------|
 | `spark_writer` | public, ingest, monitoring | INSERT raw_prices, CREATE staging tables, INSERT DLQ |
 | `dbt_runner` | public, analytics, monitoring | SELECT raw_prices, CREATE analytics models, SELECT + DELETE monitoring (retention), INSERT dbt_test_runs |
-| `grafana_read` | analytics, monitoring | SELECT on all analytics tables (auto-granted on new dbt objects) + SELECT on all monitoring tables and views |
+| `grafana_read` | public, analytics, monitoring | SELECT raw_prices (several panels chart the raw layer directly), SELECT on all analytics tables (auto-granted on new dbt objects) + SELECT on all monitoring tables and views |
 | `producer_writer` | monitoring | INSERT api_calls |
 | `backup_user` | all | SELECT on all schemas and sequences + INSERT backup_log (used by pg_dump and backup logging) |
 | `alert_writer` | monitoring | INSERT alert_events |

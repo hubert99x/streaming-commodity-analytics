@@ -96,9 +96,14 @@ make dbt-debug         # Validate dbt profile and connection
 ### Testing & Linting (local)
 These run automatically in CI on push/PR, but can also be run locally:
 ```bash
-pytest -q              # Run unit tests (92 tests)
+pytest -q              # Run unit tests (118 tests)
 ruff check producer tests ops spark  # Lint Python code (example: these are the project's source directories)
 ```
+
+The alert-receiver tests need Flask and waitress, which are not in `producer/requirements.txt`.
+Without them that module skips itself and the run reports 99 passed, 1 skipped. To run the full
+suite locally: `pip install -r ops/alert-receiver/requirements.txt`. CI installs them, so all 118
+tests always run there.
 
 ### Backup & Restore
 ```bash
@@ -233,7 +238,7 @@ All three dashboards are auto-provisioned from JSON files in `grafana/dashboards
 - API Metrics: calls count, errors, P95 latency, success rate
 
 **Market Analysis** – analytical view of price behavior:
-- Price Statistics table (latest price, min/max, range, std dev per instrument)
+- Price Statistics table (avg price, price range, range %, std dev, largest move, events and observation count per instrument, for the latest completed hour)
 - Hourly Price Change (%) time series
 - Recent Price Events table (MEDIUM / LARGE / EXTREME moves)
 
@@ -252,4 +257,5 @@ All three dashboards are auto-provisioned from JSON files in `grafana/dashboards
 | spark_checkpoints | Spark offset state | Partially (earliest restarts from beginning, latest skips backlog) |
 | spark_ivy_cache | Maven dependency cache | Yes (re-downloaded on start) |
 | grafana_data | Grafana state | Yes (provisioned from config files) |
+| pgadmin_data | pgAdmin settings (dev profile) | Yes (re-created on first login) |
 | ./backups | pg_dump archives | **NO** – stored on host filesystem |

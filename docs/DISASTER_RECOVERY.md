@@ -105,4 +105,5 @@ If restore fails, the backup may be corrupted or inconsistent.
 | spark_checkpoints | Spark offset state | Partially (earliest restarts from beginning) |
 | spark_ivy_cache | Maven dependency cache | Yes (re-downloaded on start) |
 | grafana_data | Grafana state | Yes (provisioned from config files) |
+| pgadmin_data | pgAdmin settings (dev profile) | Yes (re-created on first login) |
 | ./backups | pg_dump archives | **NO** – stored on host filesystem |

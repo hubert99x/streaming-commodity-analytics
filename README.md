@@ -79,7 +79,7 @@ Compared to traditional batch ETL, it provides faster feedback loops, continuous
 | **backup-cron** | pg_dump every 2h, keeps last 360 backups | ops |
 | **retention** | Retention daemon (90-day cleanup every 24h) | ops |
 | **spark** | Interactive Spark shell (debugging, runs `sleep infinity`) | dev |
-| **dbt** | One-off dbt execution container | always |
+| **dbt** | One-off dbt execution container | core |
 | **pgadmin** | Database admin UI (port 5050) | dev |
 | **kafka-ui** | Kafka topic browser (port 8080) | dev |
 
@@ -162,12 +162,14 @@ cp .env.example .env
 make real
 
 # 4. Verify
-make health          # all services should show "healthy" within ~2 min
+make health          # the 7 services with a healthcheck turn "healthy" within ~2 min
 
 # 5. Open Grafana at http://localhost:3000 (credentials in .env)
 ```
 
 This starts all core services and operational jobs required for the full pipeline (Kafka, Spark, PostgreSQL, dbt, Grafana).
+
+Seven services define a healthcheck (postgres, kafka, producer, spark-stream, dbt-scheduler, grafana, alert-receiver). The rest, including kafka-lag, retention and backup-cron, report `Up` rather than `healthy` – that is expected, not a failure.
 
 > **Containers become healthy in 1–2 minutes, but the dashboards need about 15 minutes to fill up.** That is the pipeline working as designed, not a fault: the producer polls every 6 minutes, Spark processes a micro-batch every 5 minutes, and dbt rebuilds the analytical models every 6 minutes. Price and market-status panels appear first because they read views; the time series charts arrive one dbt cycle later because they read incremental tables.
 

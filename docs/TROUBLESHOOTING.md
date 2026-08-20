@@ -62,7 +62,7 @@ WHERE ts_utc >= now() - interval '1 hour';
 **Check Kafka topic offsets (should increase over time):**
 ```bash
 docker compose exec kafka kafka-run-class kafka.tools.GetOffsetShell \
-  --broker-list kafka:29092 \
+  --bootstrap-server kafka:29092 \
   --topic commodity_prices
 ```
 
